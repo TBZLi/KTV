@@ -1,0 +1,21 @@
+前端技术栈
+
+框架 ：Vue 3 + TypeScript
+
+构建工具 ：Vite
+
+UI框架 ：Element Plus
+
+HTTP客户端 ：Axios
+
+路由 ：Vue Router
+
+后端技术栈
+
+框架 ：ASP.NET Core 8.0
+
+数据访问 ：Dapper（轻量级ORM）
+
+数据库 ：SQL Server
+
+API设计 ：RESTful API
