@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { favoritesApi } from '@/api'
+import { useSongOrder } from '@/composables/useSongOrder'
 import type { Favorite } from '@/types'
 
+const { orderSong } = useSongOrder()
 const favorites = ref<Favorite[]>([])
 const songCount = computed(() => favorites.value.length)
 
@@ -62,7 +64,10 @@ onMounted(() => {
           >
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">favorite</span>
           </button>
-          <button class="px-8 py-3 bg-primary text-white rounded-full font-bold text-sm tracking-wide hover:bg-secondary active:scale-95 transition-all shadow-md shadow-primary/20">
+          <button
+            @click="orderSong(favorite.song)"
+            class="px-8 py-3 bg-primary text-white rounded-full font-bold text-sm tracking-wide hover:bg-secondary active:scale-95 transition-all shadow-md shadow-primary/20"
+          >
             点歌
           </button>
         </div>

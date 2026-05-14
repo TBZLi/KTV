@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { songsApi } from '@/api'
+import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
 import { formatDuration } from '@/utils/format'
 
+const { orderSong } = useSongOrder()
 const genres = ref<string[]>([])
 const selectedGenre = ref<string>('')
 const songs = ref<Song[]>([])
@@ -124,7 +126,10 @@ onMounted(() => {
               </span>
             </button>
             <!-- Order button -->
-            <button class="px-8 py-3 bg-primary text-on-primary rounded-full font-bold font-body active:scale-90 transition-transform shadow-lg shadow-primary/10">
+            <button
+              @click="orderSong(song)"
+              class="px-8 py-3 bg-primary text-on-primary rounded-full font-bold font-body active:scale-90 transition-transform shadow-lg shadow-primary/10"
+            >
               点歌
             </button>
           </div>

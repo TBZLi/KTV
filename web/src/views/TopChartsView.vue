@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { chartsApi } from '@/api'
+import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
 import { formatPlayCount } from '@/utils/format'
+
+const { orderSong } = useSongOrder()
 
 type ChartPeriod = 'daily' | 'weekly'
 
@@ -97,6 +100,7 @@ onMounted(() => {
 
         <!-- Order button -->
         <button
+          @click="orderSong(song)"
           :class="[
             'px-6 py-3 rounded-full font-bold font-label shrink-0 transition-colors',
             index === 0

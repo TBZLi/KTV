@@ -15,6 +15,7 @@ export interface Song {
   genre: string
   duration: number
   coverUrl: string
+  mediaUrl: string
   playCount: number
   status: 'active' | 'inactive'
   createdAt: string
@@ -27,6 +28,7 @@ export interface PlayQueueItem {
   songTitle: string
   artist: string
   coverUrl: string
+  mediaUrl: string
   orderedBy: string
   sortOrder: number
   createdAt: string
@@ -41,6 +43,7 @@ export interface Favorite {
 }
 
 export interface RoomInfo {
+  roomId: number
   roomNumber: string
   roomType: string
   songsQueued: number

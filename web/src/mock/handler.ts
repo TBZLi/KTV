@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter'
 import { apiClient } from '../api/client'
-import { mockUser, mockSongs, mockGenres, mockFavorites, mockRoomInfo, mockNowPlaying, mockPlayQueue, mockDailyCharts, mockWeeklyCharts } from './data'
+import { mockUser, mockSongs, mockGenres, mockFavorites, mockRoomInfo, mockPlayQueue, mockDailyCharts, mockWeeklyCharts } from './data'
 
 export function setupMockAdapter() {
   const mock = new MockAdapter(apiClient, { delayResponse: 300 })

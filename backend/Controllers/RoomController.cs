@@ -47,6 +47,7 @@ public class RoomController : ControllerBase
 
         return Ok(new
         {
+            roomId = room.Id,
             roomNumber = room.RoomNumber,
             roomType = room.RoomType,
             songsQueued = queueCount

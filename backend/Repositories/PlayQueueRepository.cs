@@ -15,7 +15,7 @@ public class PlayQueueRepository : IPlayQueueRepository
     {
         using var conn = CreateConnection();
         var items = await conn.QueryAsync<PlayQueueItem>(
-            @"SELECT pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl,
+            @"SELECT pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl, s.MediaUrl,
                      pq.OrderedByUserId, u.DisplayName AS OrderedBy, pq.SortOrder, pq.Status, pq.CreatedAt
               FROM PlayQueue pq
               INNER JOIN Songs s ON pq.SongId = s.Id
