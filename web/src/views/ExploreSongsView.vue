@@ -94,8 +94,9 @@ onMounted(() => {
         <img
           v-if="song.coverUrl"
           :src="'http://localhost:5276' + song.coverUrl"
-          class="w-20 h-20 rounded-xl flex-shrink-0 shadow-inner object-cover"
+          class="w-20 h-20 rounded-xl flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="song.title"
+          @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
         />
         <div v-else class="w-20 h-20 bg-slate-200 rounded-xl flex-shrink-0 shadow-inner flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>

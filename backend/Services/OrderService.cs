@@ -1,3 +1,5 @@
+using System.Data;
+using Microsoft.Data.SqlClient;
 using backend.Models;
 using backend.Repositories;
 
@@ -12,6 +14,7 @@ public class OrderService
     private readonly IUserRepository _userRepo;
     private readonly ISettingsRepository _settingsRepo;
     private readonly IHolidayRepository _holidayRepo;
+    private readonly string _connStr;
 
     public OrderService(
         IOrderRepository orderRepo,
@@ -20,7 +23,8 @@ public class OrderService
         ISongRepository songRepo,
         IUserRepository userRepo,
         ISettingsRepository settingsRepo,
-        IHolidayRepository holidayRepo)
+        IHolidayRepository holidayRepo,
+        string connStr)
     {
         _orderRepo = orderRepo;
         _roomRepo = roomRepo;
@@ -29,6 +33,7 @@ public class OrderService
         _userRepo = userRepo;
         _settingsRepo = settingsRepo;
         _holidayRepo = holidayRepo;
+        _connStr = connStr;
     }
 
     public async Task<PaginatedResult<Order>> GetListAsync(string? status, string? searchField, string? searchKeyword, int page, int pageSize)
@@ -110,32 +115,43 @@ public class OrderService
 
         if (amount <= 0) throw new Exception("金额必须大于 0");
 
-        // Atomically deduct balance (checks balance >= amount in same UPDATE)
-        var deducted = await _userRepo.TryDeductBalanceAsync(userId, amount);
-        if (!deducted)
+        // Transaction: deduct balance + create order + bind room
+        using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
+
+        try
         {
-            var balance = await _userRepo.GetBalanceAsync(userId);
-            throw new Exception($"账户余额不足，当前余额: {balance:F2}，需要: {amount:F2}");
+            var deducted = await _userRepo.TryDeductBalanceAsync(userId, amount, tran);
+            if (!deducted)
+            {
+                var balance = await _userRepo.GetBalanceAsync(userId);
+                throw new Exception($"账户余额不足，当前余额: {balance:F2}，需要: {amount:F2}");
+            }
+
+            var order = new Order
+            {
+                UserId = userId,
+                RoomId = roomId,
+                OrderType = orderType,
+                Amount = amount,
+                Status = "in_progress",
+                StartTime = DateTime.UtcNow
+            };
+
+            var orderId = await _orderRepo.CreateAsync(order, tran);
+
+            await _roomRepo.UpdateCurrentOrderIdAsync(roomId, orderId, tran);
+            await _roomRepo.UpdateStatusAsync(roomId, "in_use", tran);
+
+            tran.Commit();
+            return orderId;
         }
-
-        // Create order
-        var order = new Order
+        catch
         {
-            UserId = userId,
-            RoomId = roomId,
-            OrderType = orderType,
-            Amount = amount,
-            Status = "in_progress",
-            StartTime = DateTime.UtcNow
-        };
-
-        var orderId = await _orderRepo.CreateAsync(order);
-
-        // Set room to in_use and bind order
-        await _roomRepo.UpdateCurrentOrderIdAsync(roomId, orderId);
-        await _roomRepo.UpdateStatusAsync(roomId, "in_use");
-
-        return orderId;
+            tran.Rollback();
+            throw;
+        }
     }
 
     public async Task RefundAsync(string id)
@@ -144,15 +160,24 @@ public class OrderService
         if (order == null) throw new Exception("订单不存在");
         if (order.Status != "in_progress") throw new Exception($"订单状态为 {order.Status}，无法退款");
 
-        // Refund balance to user
-        await _userRepo.RechargeAsync(order.UserId, order.Amount);
+        using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
 
-        // Update order status
-        await _orderRepo.RefundAsync(id);
+        try
+        {
+            await _userRepo.RechargeAsync(order.UserId, order.Amount, tran);
+            await _orderRepo.RefundAsync(id, tran);
+            await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null, tran);
+            await _roomRepo.UpdateStatusAsync(order.RoomId, "idle", tran);
 
-        // Set room back to idle and clear order binding
-        await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null);
-        await _roomRepo.UpdateStatusAsync(order.RoomId, "idle");
+            tran.Commit();
+        }
+        catch
+        {
+            tran.Rollback();
+            throw;
+        }
     }
 
     public async Task CompleteAsync(string id)
@@ -161,11 +186,23 @@ public class OrderService
         if (order == null) throw new Exception("订单不存在");
         if (order.Status != "in_progress") throw new Exception($"订单状态为 {order.Status}，无法完成");
 
-        await _orderRepo.CompleteAsync(id);
+        using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
 
-        // Room goes to cleaning, clear order binding
-        await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null);
-        await _roomRepo.UpdateStatusAsync(order.RoomId, "cleaning");
+        try
+        {
+            await _orderRepo.CompleteAsync(id, tran);
+            await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null, tran);
+            await _roomRepo.UpdateStatusAsync(order.RoomId, "cleaning", tran);
+
+            tran.Commit();
+        }
+        catch
+        {
+            tran.Rollback();
+            throw;
+        }
     }
 
     public async Task CancelAsync(string id)
@@ -174,14 +211,24 @@ public class OrderService
         if (order == null) throw new Exception("订单不存在");
         if (order.Status != "in_progress") throw new Exception($"订单状态为 {order.Status}，无法取消");
 
-        // Refund balance to user
-        await _userRepo.RechargeAsync(order.UserId, order.Amount);
+        using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
 
-        await _orderRepo.CancelAsync(id);
+        try
+        {
+            await _userRepo.RechargeAsync(order.UserId, order.Amount, tran);
+            await _orderRepo.CancelAsync(id, tran);
+            await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null, tran);
+            await _roomRepo.UpdateStatusAsync(order.RoomId, "idle", tran);
 
-        // Room goes to idle, clear order binding
-        await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null);
-        await _roomRepo.UpdateStatusAsync(order.RoomId, "idle");
+            tran.Commit();
+        }
+        catch
+        {
+            tran.Rollback();
+            throw;
+        }
     }
 
     public async Task RestoreAsync(string id)
@@ -190,30 +237,39 @@ public class OrderService
         if (order == null) throw new Exception("订单不存在");
         if (order.Status != "cancelled") throw new Exception($"订单状态为 {order.Status}，仅已取消订单可恢复");
 
-        // Check user exists and is active
+        // Pre-checks (read-only, no transaction needed)
         var user = await _userRepo.GetByIdAsync(order.UserId);
         if (user == null) throw new Exception("用户不存在");
         if (user.Status != "active") throw new Exception("用户账户已被禁用，无法恢复订单");
 
-        // Check balance
         var balance = await _userRepo.GetBalanceAsync(order.UserId);
         if (balance < order.Amount) throw new Exception($"账户余额不足，当前余额: {balance:F2}，需要: {order.Amount:F2}");
 
-        // Check room is available
         var room = await _roomRepo.GetByIdAsync(order.RoomId);
         if (room == null) throw new Exception("房间不存在");
         if (room.Status == "in_use") throw new Exception($"房间 {room.RoomNumber} 正在使用中，无法恢复订单");
 
-        // Deduct balance
-        var deducted = await _userRepo.TryDeductBalanceAsync(order.UserId, order.Amount);
-        if (!deducted) throw new Exception("扣款失败");
+        // Transaction: deduct + restore order + rebind room
+        using var conn = new SqlConnection(_connStr);
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
 
-        // Restore order
-        await _orderRepo.RestoreAsync(id);
+        try
+        {
+            var deducted = await _userRepo.TryDeductBalanceAsync(order.UserId, order.Amount, tran);
+            if (!deducted) throw new Exception("扣款失败");
 
-        // Rebind room
-        await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, id);
-        await _roomRepo.UpdateStatusAsync(order.RoomId, "in_use");
+            await _orderRepo.RestoreAsync(id, tran);
+            await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, id, tran);
+            await _roomRepo.UpdateStatusAsync(order.RoomId, "in_use", tran);
+
+            tran.Commit();
+        }
+        catch
+        {
+            tran.Rollback();
+            throw;
+        }
     }
 
     public async Task DeleteAsync(string id)

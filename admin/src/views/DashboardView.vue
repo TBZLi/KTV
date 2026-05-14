@@ -107,6 +107,7 @@
                 :src="'http://localhost:5276' + song.coverUrl"
                 class="w-12 h-12 rounded-lg overflow-hidden shrink-0 object-cover"
                 :alt="song.title"
+                @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
               />
               <div v-else class="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
                 <span class="material-symbols-outlined text-slate-400 text-lg">music_note</span>

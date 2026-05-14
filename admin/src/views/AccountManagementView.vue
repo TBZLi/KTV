@@ -64,6 +64,7 @@
                     :src="BACKEND_BASE + user.avatarUrl"
                     class="w-8 h-8 rounded-full object-cover shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg"
                     :alt="user.username"
+                    @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_AVATAR"
                   />
                   <div
                     v-else
@@ -215,6 +216,7 @@
               v-if="avatarPreview || editingUser.avatarUrl"
               :src="avatarPreview || (BACKEND_BASE + editingUser.avatarUrl)"
               class="w-16 h-16 rounded-full object-cover ring-2 ring-surface-container-highest"
+              @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_AVATAR"
             />
             <div v-else class="w-16 h-16 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg">{{ getAvatarInitial(editingUser) }}</div>
             <label class="px-4 py-2 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors text-sm text-on-surface-variant flex items-center gap-2">
@@ -325,6 +327,8 @@ const editForm = ref({ displayName: '', phone: '', isVip: false })
 const originalIsVip = ref(false)
 const newAvatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
+
+const DEFAULT_AVATAR = '/uploads/avatars/default.jpg'
 
 // Recharge dialog
 const showRechargeDialog = ref(false)

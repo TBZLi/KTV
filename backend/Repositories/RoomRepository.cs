@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using backend.Models;
@@ -46,20 +47,28 @@ public class RoomRepository : IRoomRepository
         return new PaginatedResult<Room> { Items = items.ToList(), Total = total, Page = page, PageSize = pageSize };
     }
 
-    public async Task UpdateStatusAsync(int id, string status)
+    public async Task UpdateStatusAsync(int id, string status, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Rooms SET Status = @Status, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id, Status = status });
+        const string sql = "UPDATE Rooms SET Status = @Status, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id, Status = status }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id, Status = status });
+        }
     }
 
-    public async Task UpdateCurrentOrderIdAsync(int id, string? orderId)
+    public async Task UpdateCurrentOrderIdAsync(int id, string? orderId, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Rooms SET CurrentOrderId = @OrderId, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id, OrderId = orderId });
+        const string sql = "UPDATE Rooms SET CurrentOrderId = @OrderId, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id, OrderId = orderId }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id, OrderId = orderId });
+        }
     }
 
     public async Task<int> GetCountAsync()

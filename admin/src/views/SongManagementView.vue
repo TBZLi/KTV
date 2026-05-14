@@ -85,6 +85,7 @@
                   :src="BACKEND_BASE + song.coverUrl"
                   class="w-12 h-12 rounded object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
                   :alt="song.title"
+                  @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_COVER"
                 />
                 <div v-else class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400">
                   <span class="material-symbols-outlined text-lg">image</span>
@@ -233,6 +234,7 @@ import { formatPlayCount, formatDuration, formatFileSize } from '@/utils/format'
 import jsmediatags from 'jsmediatags'
 
 const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
+const DEFAULT_COVER = '/uploads/covers/default.jpg'
 
 const router = useRouter()
 const songs = ref<Song[]>([])

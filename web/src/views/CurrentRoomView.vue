@@ -63,8 +63,9 @@ onMounted(() => {
       <img
         v-if="queue.length > 0 && queue[0].coverUrl"
         :src="'http://localhost:5276' + queue[0].coverUrl"
-        class="w-48 h-48 rounded-lg flex-shrink-0 object-cover"
+        class="w-48 h-48 rounded-lg flex-shrink-0 object-cover cursor-pointer"
         :alt="nowPlaying.title"
+        @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
       />
       <div v-else class="w-48 h-48 bg-slate-200 rounded-lg flex-shrink-0 flex items-center justify-center text-slate-400 text-center font-bold px-4">
         <span class="material-symbols-outlined text-6xl text-slate-400">music_note</span>
@@ -109,8 +110,9 @@ onMounted(() => {
         <img
           v-if="item.coverUrl"
           :src="'http://localhost:5276' + item.coverUrl"
-          class="w-12 h-12 rounded-lg mx-6 flex-shrink-0 object-cover"
+          class="w-12 h-12 rounded-lg mx-6 flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="item.songTitle"
+          @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
         />
         <div v-else class="w-12 h-12 bg-slate-200 rounded-lg mx-6 flex-shrink-0 flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400 text-sm">image</span>

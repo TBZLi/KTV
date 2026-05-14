@@ -1,5 +1,14 @@
 import axios from 'axios'
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp * 1000 < Date.now()
+  } catch {
+    return true
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:5001',
   timeout: 10000,
@@ -9,6 +18,12 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
+    if (isTokenExpired(token)) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/dashboard'
+      return Promise.reject(new Error('登录已过期，请重新登录'))
+    }
     config.headers.Authorization = `Bearer ${token}`
   }
   return config

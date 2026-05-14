@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using backend.Models;
@@ -72,55 +73,82 @@ public class OrderRepository : IOrderRepository
         return new PaginatedResult<Order> { Items = items.ToList(), Total = total, Page = page, PageSize = pageSize };
     }
 
-    public async Task<string> CreateAsync(Order order)
+    public async Task<string> CreateAsync(Order order, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
         order.Id = $"ORD{DateTime.UtcNow:yyMMddHHmm}{new Random().Next(100, 999)}";
-        await conn.ExecuteAsync(
-            @"INSERT INTO Orders (Id, UserId, RoomId, OrderType, SongId, Amount, Status, StartTime, EndTime)
-              VALUES (@Id, @UserId, @RoomId, @OrderType, @SongId, @Amount, @Status, @StartTime, @EndTime)",
-            order);
+        const string sql = @"INSERT INTO Orders (Id, UserId, RoomId, OrderType, SongId, Amount, Status, StartTime, EndTime)
+              VALUES (@Id, @UserId, @RoomId, @OrderType, @SongId, @Amount, @Status, @StartTime, @EndTime)";
+
+        if (tran != null)
+        {
+            await tran!.Connection!.ExecuteAsync(sql, order, tran);
+        }
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, order);
+        }
         return order.Id;
     }
 
-    public async Task RefundAsync(string id)
+    public async Task RefundAsync(string id, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Orders SET Status = 'refunded', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        const string sql = "UPDATE Orders SET Status = 'refunded', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id });
+        }
     }
 
-    public async Task CompleteAsync(string id)
+    public async Task CompleteAsync(string id, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Orders SET Status = 'completed', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        const string sql = "UPDATE Orders SET Status = 'completed', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id });
+        }
     }
 
-    public async Task CancelAsync(string id)
+    public async Task CancelAsync(string id, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Orders SET Status = 'cancelled', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        const string sql = "UPDATE Orders SET Status = 'cancelled', EndTime = GETUTCDATE(), UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id });
+        }
     }
 
-    public async Task RestoreAsync(string id)
+    public async Task RestoreAsync(string id, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Orders SET Status = 'in_progress', EndTime = NULL, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        const string sql = "UPDATE Orders SET Status = 'in_progress', EndTime = NULL, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id });
+        }
     }
 
-    public async Task SoftDeleteAsync(string id)
+    public async Task SoftDeleteAsync(string id, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Orders SET IsDeleted = 1, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        const string sql = "UPDATE Orders SET IsDeleted = 1, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = id }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = id });
+        }
     }
 
     public async Task<List<Order>> GetLatestAsync(int count)

@@ -23,7 +23,7 @@
       <!-- Header: Cover + Title -->
       <div class="flex gap-8 items-start">
         <div class="w-48 h-48 rounded-2xl overflow-hidden bg-surface-container-high flex-shrink-0 shadow-md relative group">
-          <img v-if="currentCoverUrl" :src="BACKEND_BASE + currentCoverUrl" class="w-full h-full object-cover" />
+          <img v-if="currentCoverUrl" :src="currentCoverUrl" class="w-full h-full object-cover" @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_COVER" />
           <div v-else class="w-full h-full flex items-center justify-center">
             <span class="material-symbols-outlined text-5xl text-outline-variant">music_note</span>
           </div>
@@ -182,6 +182,7 @@ import type { SongDetail } from '@/types'
 import { formatPlayCount, formatDuration, formatFileSize } from '@/utils/format'
 
 const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
+const DEFAULT_COVER = '/uploads/covers/default.jpg'
 
 const route = useRoute()
 const router = useRouter()
@@ -208,7 +209,12 @@ const newMediaUrl = ref<string | null>(null)
 const newFileSize = ref<number | null>(null)
 const newDuration = ref<number | null>(null)
 
-const currentCoverUrl = computed(() => newCoverUrl.value || detail.value?.coverUrl)
+const currentCoverUrl = computed(() => {
+  const url = newCoverUrl.value || detail.value?.coverUrl
+  if (!url) return ''
+  if (url.startsWith('blob:') || url.startsWith('http')) return url
+  return BACKEND_BASE + url
+})
 const currentMediaName = computed(() => {
   if (newMediaFile.value) return newMediaFile.value.name
   return detail.value?.mediaUrl?.split('/').pop() || '未上传'

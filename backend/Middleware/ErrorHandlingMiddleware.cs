@@ -20,11 +20,18 @@ public class ErrorHandlingMiddleware
         {
             await _next(context);
         }
+        catch (BusinessException ex)
+        {
+            _logger.LogWarning("Business error: {Message}", ex.Message);
+            context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsync(JsonSerializer.Serialize(new { message = ex.Message }));
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Unhandled exception");
 
-            // Business exceptions (known error messages) return 400
+            // Fallback: classify known Chinese business error keywords as 400
             var isBusinessError = ex.Message.Contains("余额不足")
                 || ex.Message.Contains("不存在")
                 || ex.Message.Contains("已被禁用")

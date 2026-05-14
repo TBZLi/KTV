@@ -1,3 +1,4 @@
+using System.Data;
 using backend.Models;
 
 namespace backend.Repositories;
@@ -10,8 +11,8 @@ public interface IUserRepository
     Task<int> CreateAsync(User user);
     Task UpdateAsync(User user);
     Task<decimal> GetBalanceAsync(int userId);
-    Task RechargeAsync(int userId, decimal amount);
-    Task<bool> TryDeductBalanceAsync(int userId, decimal amount);
+    Task RechargeAsync(int userId, decimal amount, IDbTransaction? tran = null);
+    Task<bool> TryDeductBalanceAsync(int userId, decimal amount, IDbTransaction? tran = null);
     Task<int> GetActiveCountAsync();
     Task<User?> GetAdminAsync();
     Task UpdateUsernameAsync(int id, string username);

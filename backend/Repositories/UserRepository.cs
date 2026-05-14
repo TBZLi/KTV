@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using backend.Models;
@@ -77,20 +78,29 @@ public class UserRepository : IUserRepository
             "SELECT Balance FROM Users WHERE Id = @Id", new { Id = userId });
     }
 
-    public async Task RechargeAsync(int userId, decimal amount)
+    public async Task RechargeAsync(int userId, decimal amount, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Users SET Balance = Balance + @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = userId, Amount = amount });
+        const string sql = "UPDATE Users SET Balance = Balance + @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
+        if (tran != null)
+            await tran!.Connection!.ExecuteAsync(sql, new { Id = userId, Amount = amount }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(sql, new { Id = userId, Amount = amount });
+        }
     }
 
-    public async Task<bool> TryDeductBalanceAsync(int userId, decimal amount)
+    public async Task<bool> TryDeductBalanceAsync(int userId, decimal amount, IDbTransaction? tran = null)
     {
-        using var conn = CreateConnection();
-        var rows = await conn.ExecuteAsync(
-            "UPDATE Users SET Balance = Balance - @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id AND Balance >= @Amount AND Status = 'active'",
-            new { Id = userId, Amount = amount });
+        const string sql = "UPDATE Users SET Balance = Balance - @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id AND Balance >= @Amount AND Status = 'active'";
+        int rows;
+        if (tran != null)
+            rows = await tran!.Connection!.ExecuteAsync(sql, new { Id = userId, Amount = amount }, tran);
+        else
+        {
+            using var conn = CreateConnection();
+            rows = await conn.ExecuteAsync(sql, new { Id = userId, Amount = amount });
+        }
         return rows > 0;
     }
 
