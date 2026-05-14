@@ -235,7 +235,12 @@ onMounted(() => {
   fetchRooms()
 })
 
-watch([activeStatus, searchQuery, currentPage], () => {
+watch([activeStatus, searchQuery], () => {
+  currentPage.value = 1
+  fetchRooms()
+})
+
+watch(currentPage, () => {
   fetchRooms()
 })
 </script>

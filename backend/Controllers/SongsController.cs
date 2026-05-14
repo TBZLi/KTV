@@ -15,9 +15,9 @@ public class SongsController : ControllerBase
     public SongsController(SongService songService) => _songService = songService;
 
     [HttpGet]
-    public async Task<IActionResult> GetList([FromQuery] string? search, [FromQuery] string? genre, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetList([FromQuery] string? search, [FromQuery] string? genre, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _songService.GetListAsync(search, genre, page, pageSize);
+        var result = await _songService.GetListAsync(search, genre, status, page, pageSize);
         return Ok(result);
     }
 
@@ -38,15 +38,23 @@ public class SongsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSongRequest request)
     {
-        var id = await _songService.CreateAsync(request.Title, request.Artist, request.Genre, request.Duration, request.CoverUrl, request.MediaUrl);
+        var id = await _songService.CreateAsync(request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl);
         return Ok(new { id });
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateSongRequest request)
     {
-        await _songService.UpdateAsync(id, request.Title, request.Artist, request.Genre, request.Duration, request.CoverUrl, request.MediaUrl, request.Status);
+        await _songService.UpdateAsync(id, request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl, request.Status);
         return Ok();
+    }
+
+    [HttpGet("{id}/detail")]
+    public async Task<IActionResult> GetDetail(int id)
+    {
+        var detail = await _songService.GetDetailAsync(id);
+        if (detail == null) return NotFound();
+        return Ok(detail);
     }
 
     [HttpDelete("{id}")]

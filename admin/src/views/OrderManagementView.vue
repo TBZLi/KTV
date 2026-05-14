@@ -190,8 +190,8 @@
           <div>
             <label class="block text-sm font-medium text-on-surface-variant mb-1">包厢</label>
             <select v-model.number="createForm.roomId" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
-              <option v-for="r in allRooms" :key="r.id" :value="r.id" :disabled="r.status === 'in_use'">
-                {{ r.roomNumber }} ({{ formatRoomType(r.roomType) }}) — {{ formatRoomStatus(r.status) }}
+              <option v-for="r in selectableRooms" :key="r.id" :value="r.id" :disabled="r.disabled">
+                {{ r.roomNumber }} ({{ formatRoomType(r.roomType) }}) — {{ formatRoomStatus(r.status) }}{{ r.roomType === 'VIP' && !selectedUser?.isVip ? ' — 仅 VIP 可用' : '' }}
               </option>
             </select>
           </div>
@@ -199,7 +199,7 @@
             <label class="block text-sm font-medium text-on-surface-variant mb-1">使用时长（小时）</label>
             <input v-model.number="createForm.hours" type="number" min="0.5" step="0.5" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" :disabled="createForm.useCustomAmount" />
             <p class="mt-1.5 text-xs text-on-surface-variant">
-              单价: {{ formatCurrency(baseHourlyRate) }}/小时
+              单价: {{ formatCurrency(currentHourlyRate) }}/小时（{{ currentRoomMultiplier }}x）
               <span v-if="!createForm.useCustomAmount"> · 预估金额: <span class="font-semibold text-on-surface">{{ formatCurrency(calculatedAmount) }}</span></span>
             </p>
           </div>
@@ -302,9 +302,13 @@ const showCreateDialog = ref(false)
 const createForm = ref({ userId: 2, roomId: 1, hours: 2, useCustomAmount: false, amountOverride: 0 })
 const userBalance = ref<number | null>(null)
 const baseHourlyRate = ref(120)
+const roomMultiplierVip = ref(1.5)
+const roomMultiplierMedium = ref(1.3)
+const roomMultiplierSmall = ref(1.0)
 const verifyDeleteOrder = ref(true)
 const allUsers = ref<User[]>([])
 const allRooms = ref<Room[]>([])
+const usersWithActiveOrder = ref<Set<number>>(new Set())
 
 // Password verification dialog
 const showPasswordDialog = ref(false)
@@ -312,16 +316,36 @@ const passwordInput = ref('')
 const passwordError = ref('')
 const passwordCallback = ref<(() => Promise<void>) | null>(null)
 
-const calculatedAmount = computed(() => createForm.value.hours * baseHourlyRate.value)
+const currentRoomMultiplier = computed(() => {
+  const room = allRooms.value.find(r => r.id === createForm.value.roomId)
+  if (!room) return 1.0
+  if (room.roomType === 'VIP') return roomMultiplierVip.value
+  if (room.roomType === 'Medium') return roomMultiplierMedium.value
+  return roomMultiplierSmall.value
+})
+
+const currentHourlyRate = computed(() => baseHourlyRate.value * currentRoomMultiplier.value)
+const calculatedAmount = computed(() => createForm.value.hours * currentHourlyRate.value)
 const finalAmount = computed(() => createForm.value.useCustomAmount ? createForm.value.amountOverride : calculatedAmount.value)
 
-const activeUsers = computed(() => allUsers.value.filter(u => u.status === 'active'))
+const activeUsers = computed(() =>
+  allUsers.value.filter(u => u.status === 'active' && !usersWithActiveOrder.value.has(u.id))
+)
+
+const selectedUser = computed(() => allUsers.value.find(u => u.id === createForm.value.userId))
+const selectableRooms = computed(() =>
+  allRooms.value.map(r => ({
+    ...r,
+    disabled: r.status === 'in_use' || (r.roomType === 'VIP' && !selectedUser.value?.isVip),
+  }))
+)
 
 const canCreate = computed(() => {
   if (finalAmount.value <= 0) return false
   if (userBalance.value !== null && finalAmount.value > userBalance.value) return false
   const room = allRooms.value.find(r => r.id === createForm.value.roomId)
   if (room?.status === 'in_use') return false
+  if (room?.roomType === 'VIP' && !selectedUser.value?.isVip) return false
   return true
 })
 
@@ -398,13 +422,15 @@ async function fetchUserBalance() {
 }
 
 async function openCreateDialog() {
-  // Refresh users and rooms before opening
-  const [usersRes, roomsRes] = await Promise.all([
+  // Refresh users, rooms, and active orders before opening
+  const [usersRes, roomsRes, activeOrdersRes] = await Promise.all([
     accountsApi.getList({ pageSize: 1000 }),
     roomsApi.getList({ pageSize: 1000 }),
+    ordersApi.getList({ status: 'in_progress', pageSize: 1000 }),
   ])
   allUsers.value = usersRes.data.items
   allRooms.value = roomsRes.data.items
+  usersWithActiveOrder.value = new Set(activeOrdersRes.data.items.map((o: Order) => o.userId))
 
   if (activeUsers.value.length === 0 || allRooms.value.length === 0) return
   createForm.value = { userId: activeUsers.value[0].id, roomId: allRooms.value[0].id, hours: 2, useCustomAmount: false, amountOverride: 0 }
@@ -533,6 +559,12 @@ onMounted(async () => {
   const sData = settingsRes.data as any
   const rawRate = sData.base_hourly_rate ?? sData.baseHourlyRate
   if (rawRate) baseHourlyRate.value = Number(rawRate)
+  const rawVip = sData.room_type_multiplier_vip ?? sData.roomTypeMultiplierVip
+  if (rawVip) roomMultiplierVip.value = Number(rawVip)
+  const rawMed = sData.room_type_multiplier_medium ?? sData.roomTypeMultiplierMedium
+  if (rawMed) roomMultiplierMedium.value = Number(rawMed)
+  const rawSmall = sData.room_type_multiplier_small ?? sData.roomTypeMultiplierSmall
+  if (rawSmall) roomMultiplierSmall.value = Number(rawSmall)
   // Support both snake_case (from DB) and camelCase keys
   const rawVerify = sData.verify_delete_order ?? sData.verifyDeleteOrder
   if (rawVerify !== undefined) verifyDeleteOrder.value = rawVerify === 'true' || rawVerify === true
@@ -542,5 +574,15 @@ onMounted(async () => {
 
 watch([currentPage, selectedStatus, searchField], () => {
   fetchOrders()
+})
+
+watch(() => createForm.value.userId, () => {
+  // If selected room is VIP but user is not, reset room selection
+  const room = allRooms.value.find(r => r.id === createForm.value.roomId)
+  if (room?.roomType === 'VIP' && !selectedUser.value?.isVip) {
+    const firstAvailable = selectableRooms.value.find(r => !r.disabled)
+    if (firstAvailable) createForm.value.roomId = firstAvailable.id
+  }
+  fetchUserBalance()
 })
 </script>

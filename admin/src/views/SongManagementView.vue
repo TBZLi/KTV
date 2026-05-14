@@ -36,20 +36,31 @@
 
     <!-- Search Row -->
     <section class="flex flex-col md:flex-row justify-between items-center gap-4">
-      <div class="relative w-full md:w-96">
-        <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
-        <input
-          v-model="searchQuery"
-          @input="onSearch"
-          class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border-none rounded-lg text-on-surface placeholder:text-outline-variant shadow-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
-          placeholder="搜索歌曲、歌手..."
-          type="text"
-        />
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <div class="relative flex-1 md:w-96">
+          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant">search</span>
+          <input
+            v-model="searchQuery"
+            @input="onSearch"
+            class="w-full pl-12 pr-4 py-3 bg-surface-container-lowest border-none rounded-lg text-on-surface placeholder:text-outline-variant shadow-sm focus:ring-2 focus:ring-primary/20 transition-shadow"
+            placeholder="搜索歌曲、歌手..."
+            type="text"
+          />
+        </div>
+        <select
+          v-model="statusFilter"
+          @change="onStatusFilter"
+          class="px-4 py-3 bg-surface-container-lowest border-none rounded-lg text-on-surface shadow-sm focus:ring-2 focus:ring-primary/20 outline-none cursor-pointer"
+        >
+          <option value="">全部状态</option>
+          <option value="active">已上架</option>
+          <option value="disabled">已下架</option>
+        </select>
       </div>
     </section>
 
     <!-- Data Table -->
-    <section class="bg-surface-container-lowest rounded-lg shadow-sm overflow-hidden flex flex-col">
+    <section class="bg-surface-container-lowest rounded-lg shadow-sm flex flex-col">
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse">
           <thead>
@@ -69,7 +80,13 @@
               class="border-b border-surface-container-highest last:border-0 hover:bg-surface transition-colors group"
             >
               <td class="p-4">
-                <div class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400 text-xs text-center">
+                <img
+                  v-if="song.coverUrl"
+                  :src="BACKEND_BASE + song.coverUrl"
+                  class="w-12 h-12 rounded object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+                  :alt="song.title"
+                />
+                <div v-else class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400">
                   <span class="material-symbols-outlined text-lg">image</span>
                 </div>
               </td>
@@ -81,13 +98,13 @@
                   class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
                   :class="song.status === 'active'
                     ? 'bg-primary-fixed text-on-primary-fixed'
-                    : 'bg-surface-variant text-on-surface-variant'"
+                    : 'bg-error/10 text-error'"
                 >
                   {{ song.status === 'active' ? '已上架' : '已下架' }}
                 </span>
               </td>
               <td class="p-4 text-right space-x-2">
-                <button @click="openEditDialog(song)" class="text-primary hover:text-secondary transition-colors font-medium">编辑</button>
+                <button @click="goToDetail(song.id)" class="text-primary hover:text-secondary transition-colors font-medium">详情</button>
                 <button @click="handleDelete(song)" class="text-error hover:text-error/80 transition-colors font-medium">删除</button>
               </td>
             </tr>
@@ -131,41 +148,73 @@
       </div>
     </section>
 
-    <!-- Add/Edit Dialog -->
+    <!-- Add Song Dialog -->
     <div v-if="showDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showDialog = false">
-      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg p-8 space-y-6">
-        <h3 class="text-xl font-display font-bold text-on-surface">{{ isEditing ? '编辑歌曲' : '新增歌曲' }}</h3>
+      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg p-8 space-y-5">
+        <h3 class="text-xl font-display font-bold text-on-surface">新增歌曲</h3>
         <form @submit.prevent="handleSave" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-on-surface-variant mb-1">歌曲名称</label>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">歌曲名称 *</label>
             <input v-model="form.title" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-on-surface-variant mb-1">歌手</label>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">歌手 *</label>
             <input v-model="form.artist" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">风格</label>
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">风格 *</label>
               <select v-model="form.genre" class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
                 <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">时长（秒）</label>
-              <input v-model.number="form.duration" type="number" min="1" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">语种 *</label>
+              <select v-model="form.language" class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
+                <option v-for="l in languages" :key="l" :value="l">{{ l }}</option>
+              </select>
             </div>
           </div>
+
+          <!-- Music Upload -->
           <div>
-            <label class="block text-sm font-medium text-on-surface-variant mb-1">状态</label>
-            <select v-model="form.status" class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
-              <option value="active">已上架</option>
-              <option value="inactive">已下架</option>
-            </select>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">音乐文件 *</label>
+            <div class="flex items-center gap-3">
+              <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
+                <span class="material-symbols-outlined text-on-surface-variant">audio_file</span>
+                <span class="text-sm text-on-surface-variant truncate">
+                  {{ musicFile ? musicFile.name : '选择 MP3 文件（最大 30MB）' }}
+                </span>
+                <input type="file" accept=".mp3" class="hidden" @change="onMusicSelected" />
+              </label>
+              <span v-if="uploadingMusic" class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+            </div>
+            <p v-if="musicUploadError" class="mt-1 text-xs text-error">{{ musicUploadError }}</p>
+            <p v-if="form.mediaUrl" class="mt-1 text-xs text-on-surface-variant">时长：{{ formatDuration(form.duration) }} · {{ formatFileSize(form.fileSize) }}</p>
           </div>
+
+          <!-- Cover Upload -->
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">封面图片（可选）</label>
+            <div class="flex items-center gap-3">
+              <div v-if="coverPreview" class="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                <img :src="coverPreview" class="w-full h-full object-cover" />
+              </div>
+              <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
+                <span class="material-symbols-outlined text-on-surface-variant">image</span>
+                <span class="text-sm text-on-surface-variant truncate">
+                  {{ coverFile ? coverFile.name : '选择封面图片（JPG/PNG/WebP，最大 5MB）' }}
+                </span>
+                <input type="file" accept=".jpg,.jpeg,.png,.webp" class="hidden" @change="onCoverSelected" />
+              </label>
+              <span v-if="uploadingCover" class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+            </div>
+            <p v-if="coverUploadError" class="mt-1 text-xs text-error">{{ coverUploadError }}</p>
+          </div>
+
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" @click="showDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
-            <button type="submit" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+            <button type="submit" :disabled="saving || uploadingMusic || uploadingCover" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
@@ -177,31 +226,50 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { songsApi } from '@/api'
+import { useRouter } from 'vue-router'
+import { songsApi, uploadApi } from '@/api'
 import type { Song, SongStats } from '@/types'
-import { formatPlayCount } from '@/utils/format'
+import { formatPlayCount, formatDuration, formatFileSize } from '@/utils/format'
+import jsmediatags from 'jsmediatags'
 
+const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
+
+const router = useRouter()
 const songs = ref<Song[]>([])
 const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(10)
 const searchQuery = ref('')
+const statusFilter = ref('')
 let searchTimer: ReturnType<typeof setTimeout>
 
 const songStats = ref<SongStats>({ totalSongs: 0, weeklyNew: 0, todayPlays: 0 })
-const genres = ref<string[]>([])
+const genres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典']
+const languages = ['中文', '英文', '日文', '韩文', '其他']
 
 // Dialog state
 const showDialog = ref(false)
-const isEditing = ref(false)
 const saving = ref(false)
-const editingId = ref<number | null>(null)
+
+// File upload state
+const coverFile = ref<File | null>(null)
+const coverPreview = ref<string | null>(null)
+const uploadingCover = ref(false)
+const coverUploadError = ref('')
+
+const musicFile = ref<File | null>(null)
+const uploadingMusic = ref(false)
+const musicUploadError = ref('')
+
 const form = ref({
   title: '',
   artist: '',
   genre: '流行',
-  duration: 240,
-  status: 'active' as 'active' | 'inactive',
+  language: '中文',
+  duration: 0,
+  fileSize: 0 as number | null,
+  coverUrl: null as string | null,
+  mediaUrl: null as string | null,
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
@@ -225,6 +293,7 @@ const displayedPages = computed(() => {
 async function fetchSongs() {
   const res = await songsApi.getList({
     search: searchQuery.value || undefined,
+    status: statusFilter.value,
     page: currentPage.value,
     pageSize: pageSize.value,
   })
@@ -237,11 +306,6 @@ async function fetchStats() {
   songStats.value = res.data
 }
 
-async function fetchGenres() {
-  const res = await songsApi.getGenres()
-  genres.value = res.data
-}
-
 function onSearch() {
   clearTimeout(searchTimer)
   searchTimer = setTimeout(() => {
@@ -250,34 +314,148 @@ function onSearch() {
   }, 300)
 }
 
+function onStatusFilter() {
+  currentPage.value = 1
+  fetchSongs()
+}
+
+function goToDetail(id: number) {
+  router.push(`/songs/${id}`)
+}
+
 function openAddDialog() {
-  isEditing.value = false
-  editingId.value = null
-  form.value = { title: '', artist: '', genre: '流行', duration: 240, status: 'active' }
+  form.value = { title: '', artist: '', genre: '流行', language: '中文', duration: 0, fileSize: null, coverUrl: null, mediaUrl: null }
+  coverFile.value = null
+  coverPreview.value = null
+  coverUploadError.value = ''
+  musicFile.value = null
+  musicUploadError.value = ''
   showDialog.value = true
 }
 
-function openEditDialog(song: Song) {
-  isEditing.value = true
-  editingId.value = song.id
-  form.value = {
-    title: song.title,
-    artist: song.artist,
-    genre: song.genre,
-    duration: song.duration,
-    status: song.status,
+function onCoverSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  coverFile.value = file
+  coverPreview.value = URL.createObjectURL(file)
+  coverUploadError.value = ''
+}
+
+function parseFilename(file: File): { title: string; artist: string } {
+  let name = file.name.replace(/\.mp3$/i, '').replace(/\s*\[.*?\]\s*/g, '').trim()
+  const parts = name.split(/\s*-\s*/)
+  if (parts.length >= 2) {
+    return { artist: parts[0].trim(), title: parts.slice(1).join('-').trim() }
   }
-  showDialog.value = true
+  return { title: name, artist: '' }
+}
+
+function readId3Tags(file: File): Promise<{ title: string; artist: string; coverBlob: Blob | null }> {
+  return new Promise((resolve) => {
+    jsmediatags.read(file, {
+      onSuccess: (tag) => {
+        const t = tag.tags as any
+        let coverBlob: Blob | null = null
+        if (t.picture) {
+          const { data, format } = t.picture
+          const bytes = new Uint8Array(data)
+          coverBlob = new Blob([bytes], { type: format })
+        }
+        resolve({
+          title: t.title || '',
+          artist: t.artist || '',
+          coverBlob,
+        })
+      },
+      onError: () => resolve({ title: '', artist: '', coverBlob: null }),
+    })
+  })
+}
+
+async function onMusicSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  musicFile.value = file
+  musicUploadError.value = ''
+
+  // Read duration from MP3 file
+  const audio = new Audio()
+  audio.preload = 'metadata'
+  audio.onloadedmetadata = () => {
+    form.value.duration = Math.round(audio.duration)
+    URL.revokeObjectURL(audio.src)
+  }
+  audio.src = URL.createObjectURL(file)
+
+  // Auto-fill title, artist, cover from ID3 tags (only when fields are empty)
+  const id3 = await readId3Tags(file)
+
+  // Title: ID3 → filename fallback
+  if (!form.value.title) {
+    if (id3.title) {
+      form.value.title = id3.title
+    } else {
+      const parsed = parseFilename(file)
+      form.value.title = parsed.title
+    }
+  }
+
+  // Artist: ID3 → filename fallback
+  if (!form.value.artist) {
+    if (id3.artist) {
+      form.value.artist = id3.artist
+    } else {
+      const parsed = parseFilename(file)
+      form.value.artist = parsed.artist
+    }
+  }
+
+  // Cover: from ID3 embedded picture (only when no cover set)
+  if (!coverFile.value && id3.coverBlob) {
+    const coverFromId3 = new File([id3.coverBlob], 'cover.jpg', { type: id3.coverBlob.type })
+    coverFile.value = coverFromId3
+    coverPreview.value = URL.createObjectURL(coverFromId3)
+  }
 }
 
 async function handleSave() {
   saving.value = true
   try {
-    if (isEditing.value && editingId.value) {
-      await songsApi.update(editingId.value, form.value as Partial<Song>)
-    } else {
-      await songsApi.create(form.value as Partial<Song>)
+    // Upload music first (required)
+    if (musicFile.value) {
+      uploadingMusic.value = true
+      try {
+        const res = await uploadApi.music(musicFile.value)
+        form.value.mediaUrl = res.data.url
+        form.value.fileSize = musicFile.value.size
+      } catch (err: any) {
+        musicUploadError.value = err.response?.data?.message || '音乐文件上传失败'
+        return
+      } finally {
+        uploadingMusic.value = false
+      }
     }
+
+    if (!form.value.mediaUrl) {
+      musicUploadError.value = '请上传音乐文件'
+      return
+    }
+
+    // Upload cover (optional)
+    if (coverFile.value) {
+      uploadingCover.value = true
+      try {
+        const res = await uploadApi.cover(coverFile.value)
+        form.value.coverUrl = res.data.url
+      } catch (err: any) {
+        coverUploadError.value = err.response?.data?.message || '封面上传失败'
+        return
+      } finally {
+        uploadingCover.value = false
+      }
+    }
+
+    await songsApi.create(form.value as Partial<Song>)
     showDialog.value = false
     await fetchSongs()
     await fetchStats()
@@ -296,6 +474,5 @@ async function handleDelete(song: Song) {
 onMounted(() => {
   fetchStats()
   fetchSongs()
-  fetchGenres()
 })
 </script>

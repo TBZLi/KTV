@@ -38,7 +38,7 @@
     </div>
 
     <!-- Data Table -->
-    <div class="bg-surface-container-lowest rounded-xl shadow-sm ring-1 ring-outline-variant/15 overflow-hidden">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm ring-1 ring-outline-variant/15">
       <div class="overflow-x-auto">
         <table class="w-full text-left font-body text-sm">
           <thead class="bg-surface-container-low text-on-surface-variant font-headline uppercase tracking-wider text-xs border-b border-surface-container-highest">
@@ -59,7 +59,14 @@
             >
               <td class="py-4 px-6">
                 <div class="flex items-center gap-3">
+                  <img
+                    v-if="user.avatarUrl"
+                    :src="BACKEND_BASE + user.avatarUrl"
+                    class="w-8 h-8 rounded-full object-cover shrink-0 cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg"
+                    :alt="user.username"
+                  />
                   <div
+                    v-else
                     class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs uppercase shrink-0"
                     :class="user.isVip
                       ? 'bg-tertiary-container text-on-tertiary-container'
@@ -202,6 +209,20 @@
       <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg p-8 space-y-6">
         <h3 class="text-xl font-display font-bold text-on-surface">编辑账户</h3>
         <form @submit.prevent="handleEdit" class="space-y-4">
+          <!-- Avatar -->
+          <div class="flex items-center gap-4">
+            <img
+              v-if="avatarPreview || editingUser.avatarUrl"
+              :src="avatarPreview || (BACKEND_BASE + editingUser.avatarUrl)"
+              class="w-16 h-16 rounded-full object-cover ring-2 ring-surface-container-highest"
+            />
+            <div v-else class="w-16 h-16 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-lg">{{ getAvatarInitial(editingUser) }}</div>
+            <label class="px-4 py-2 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors text-sm text-on-surface-variant flex items-center gap-2">
+              <span class="material-symbols-outlined text-sm">swap_horiz</span>
+              更换头像
+              <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" @change="onAvatarSelected" />
+            </label>
+          </div>
           <div>
             <label class="block text-sm font-medium text-on-surface-variant mb-1">用户名</label>
             <div class="w-full px-4 py-3 bg-surface-container-highest rounded-lg text-on-surface-variant">{{ editingUser.username }}</div>
@@ -278,9 +299,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { accountsApi, authApi, settingsApi } from '@/api'
+import { accountsApi, authApi, settingsApi, uploadApi } from '@/api'
 import type { User } from '@/types'
 import { formatCurrency, formatUserStatus } from '@/utils/format'
+
+const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const accounts = ref<User[]>([])
 const total = ref(0)
@@ -299,6 +322,9 @@ const addForm = ref({ username: '', password: '', displayName: '', phone: '' })
 const showEditDialog = ref(false)
 const editingUser = ref<User | null>(null)
 const editForm = ref({ displayName: '', phone: '', isVip: false })
+const originalIsVip = ref(false)
+const newAvatarFile = ref<File | null>(null)
+const avatarPreview = ref<string | null>(null)
 
 // Recharge dialog
 const showRechargeDialog = ref(false)
@@ -314,6 +340,7 @@ const passwordCallback = ref<(() => Promise<void>) | null>(null)
 // Verification settings
 const verifyBalanceAdjust = ref(true)
 const verifyDisableUser = ref(true)
+const verifyToggleVip = ref(true)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
@@ -399,14 +426,42 @@ async function handleAdd() {
 function openEditDialog(user: User) {
   editingUser.value = user
   editForm.value = { displayName: user.displayName || '', phone: '', isVip: user.isVip }
+  originalIsVip.value = user.isVip
+  newAvatarFile.value = null
+  avatarPreview.value = null
   showEditDialog.value = true
+}
+
+function onAvatarSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  newAvatarFile.value = file
+  avatarPreview.value = URL.createObjectURL(file)
 }
 
 async function handleEdit() {
   if (!editingUser.value) return
+  const vipChanged = editForm.value.isVip !== originalIsVip.value
+  if (vipChanged && verifyToggleVip.value) {
+    openPasswordDialog(doSaveEdit)
+  } else {
+    await doSaveEdit()
+  }
+}
+
+async function doSaveEdit() {
+  if (!editingUser.value) return
   saving.value = true
   try {
-    await accountsApi.update(editingUser.value.id, editForm.value as Partial<User>)
+    const updateData: Record<string, any> = { ...editForm.value }
+
+    // Upload new avatar if selected
+    if (newAvatarFile.value) {
+      const res = await uploadApi.avatar(newAvatarFile.value)
+      updateData.avatarUrl = res.data.url
+    }
+
+    await accountsApi.update(editingUser.value.id, updateData as Partial<User>)
     showEditDialog.value = false
     await fetchAccounts()
   } finally {
@@ -466,6 +521,8 @@ onMounted(async () => {
     if (rawBalance !== undefined) verifyBalanceAdjust.value = rawBalance === 'true' || rawBalance === true
     const rawDisable = sData.verify_disable_user ?? sData.verifyDisableUser
     if (rawDisable !== undefined) verifyDisableUser.value = rawDisable === 'true' || rawDisable === true
+    const rawVip = sData.verify_toggle_vip ?? sData.verifyToggleVip
+    if (rawVip !== undefined) verifyToggleVip.value = rawVip === 'true' || rawVip === true
   } catch { /* use defaults */ }
 })
 

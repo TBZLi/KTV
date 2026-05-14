@@ -16,14 +16,14 @@ public class ChartsController : ControllerBase
     [HttpGet("daily")]
     public async Task<IActionResult> GetDaily()
     {
-        var result = await _songRepo.GetListAsync(null, null, 1, 10);
+        var result = await _songRepo.GetListAsync(null, null, "active", 1, 10);
         return Ok(result.Items);
     }
 
     [HttpGet("weekly")]
     public async Task<IActionResult> GetWeekly()
     {
-        var result = await _songRepo.GetListAsync(null, null, 1, 10);
+        var result = await _songRepo.GetListAsync(null, null, "active", 1, 10);
         return Ok(result.Items);
     }
 }

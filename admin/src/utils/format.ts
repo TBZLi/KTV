@@ -33,3 +33,10 @@ export function formatUserStatus(status: string): string {
   const map: Record<string, string> = { active: '启用', disabled: '禁用' }
   return map[status] || status
 }
+
+export function formatFileSize(bytes: number | null): string {
+  if (!bytes) return '-'
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${bytes} B`
+}

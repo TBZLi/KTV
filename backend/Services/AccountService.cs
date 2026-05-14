@@ -8,12 +8,14 @@ public class AccountService
     private readonly IUserRepository _userRepo;
     private readonly IOrderRepository _orderRepo;
     private readonly IRoomRepository _roomRepo;
+    private readonly IWebHostEnvironment _env;
 
-    public AccountService(IUserRepository userRepo, IOrderRepository orderRepo, IRoomRepository roomRepo)
+    public AccountService(IUserRepository userRepo, IOrderRepository orderRepo, IRoomRepository roomRepo, IWebHostEnvironment env)
     {
         _userRepo = userRepo;
         _orderRepo = orderRepo;
         _roomRepo = roomRepo;
+        _env = env;
     }
 
     public async Task<PaginatedResult<User>> GetListAsync(string? search, string? status, int page, int pageSize)
@@ -37,6 +39,7 @@ public class AccountService
             PasswordHash = password, // TODO: hash password
             DisplayName = displayName,
             Phone = phone,
+            AvatarUrl = "/uploads/avatars/default.jpg",
             Role = "user",
             Status = "active"
         };
@@ -44,16 +47,35 @@ public class AccountService
         return await _userRepo.CreateAsync(user);
     }
 
-    public async Task UpdateAsync(int id, string? displayName, string? phone, bool? isVip)
+    public async Task UpdateAsync(int id, string? displayName, string? phone, string? avatarUrl, bool? isVip)
     {
         var user = await _userRepo.GetByIdAsync(id);
         if (user == null) throw new Exception("User not found");
 
         if (displayName != null) user.DisplayName = displayName;
         if (phone != null) user.Phone = phone;
+        if (avatarUrl != null)
+        {
+            // Delete old avatar file if it's not the default
+            if (user.AvatarUrl != null && !user.AvatarUrl.Contains("default.jpg"))
+                DeletePhysicalFile(user.AvatarUrl);
+            user.AvatarUrl = avatarUrl;
+        }
         if (isVip.HasValue) user.IsVip = isVip.Value;
 
         await _userRepo.UpdateAsync(user);
+    }
+
+    private void DeletePhysicalFile(string url)
+    {
+        try
+        {
+            var relativePath = url.TrimStart('/');
+            var fullPath = Path.Combine(_env.WebRootPath, relativePath);
+            if (File.Exists(fullPath))
+                File.Delete(fullPath);
+        }
+        catch { /* best-effort */ }
     }
 
     public async Task RechargeAsync(int id, decimal amount)

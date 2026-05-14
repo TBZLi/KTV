@@ -57,16 +57,16 @@ public class UserRepository : IUserRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Role, Status)
+            @"INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, AvatarUrl, Role, Status)
               OUTPUT INSERTED.Id
-              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @Role, @Status)", user);
+              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @AvatarUrl, @Role, @Status)", user);
     }
 
     public async Task UpdateAsync(User user)
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            @"UPDATE Users SET DisplayName=@DisplayName, Phone=@Phone, IsVip=@IsVip,
+            @"UPDATE Users SET DisplayName=@DisplayName, Phone=@Phone, AvatarUrl=@AvatarUrl, IsVip=@IsVip,
               Status=@Status, Balance=@Balance, UpdatedAt=GETUTCDATE() WHERE Id=@Id", user);
     }
 

@@ -7,6 +7,7 @@ public class User
     public string PasswordHash { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? AvatarUrl { get; set; }
     public decimal Balance { get; set; }
     public bool IsVip { get; set; }
     public string Role { get; set; } = "user";

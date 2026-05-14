@@ -18,13 +18,21 @@ public class SongRepository : ISongRepository
             "SELECT * FROM Songs WHERE Id = @Id", new { Id = id });
     }
 
-    public async Task<PaginatedResult<Song>> GetListAsync(string? search, string? genre, int page, int pageSize)
+    public async Task<PaginatedResult<Song>> GetListAsync(string? search, string? genre, string? status, int page, int pageSize)
     {
         using var conn = CreateConnection();
-        var where = "WHERE Status = 'active'";
+        var where = "WHERE 1=1";
         var parameters = new DynamicParameters();
 
-        if (!string.IsNullOrEmpty(search))
+        if (string.IsNullOrEmpty(status))
+        {
+            // 空字符串 = 全部状态，不加状态筛选
+        }
+        else
+        {
+            where += " AND Status = @Status";
+            parameters.Add("Status", status);
+        }
         {
             where += " AND (Title LIKE @Search OR Artist LIKE @Search)";
             parameters.Add("Search", $"%{search}%");
@@ -50,18 +58,35 @@ public class SongRepository : ISongRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Songs (Title, Artist, Genre, Duration, CoverUrl, MediaUrl, PlayCount, Status)
+            @"INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, PlayCount, Status)
               OUTPUT INSERTED.Id
-              VALUES (@Title, @Artist, @Genre, @Duration, @CoverUrl, @MediaUrl, 0, 'active')", song);
+              VALUES (@Title, @Artist, @Genre, @Language, @Duration, @FileSize, @CoverUrl, @MediaUrl, 0, 'active')", song);
     }
 
     public async Task UpdateAsync(Song song)
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            @"UPDATE Songs SET Title=@Title, Artist=@Artist, Genre=@Genre, Duration=@Duration,
-              CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, Status=@Status, UpdatedAt=GETUTCDATE()
+            @"UPDATE Songs SET Title=@Title, Artist=@Artist, Genre=@Genre, Language=@Language, Duration=@Duration,
+              FileSize=@FileSize, CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, Status=@Status, UpdatedAt=GETUTCDATE()
               WHERE Id=@Id", song);
+    }
+
+    public async Task<int> GetFavoriteCountAsync(int songId)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM Favorites WHERE SongId = @SongId", new { SongId = songId });
+    }
+
+    public async Task<int> GetRankingAsync(int songId)
+    {
+        using var conn = CreateConnection();
+        var song = await GetByIdAsync(songId);
+        if (song == null) return 0;
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) + 1 FROM Songs WHERE PlayCount > @PlayCount AND Status = 'active'",
+            new { song.PlayCount });
     }
 
     public async Task DeleteAsync(int id)
@@ -83,9 +108,9 @@ public class SongRepository : ISongRepository
     public async Task<SongStats> GetStatsAsync()
     {
         using var conn = CreateConnection();
-        var total = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Songs WHERE Status = 'active'");
+        var total = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Songs");
         var weeklyNew = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM Songs WHERE Status = 'active' AND CreatedAt >= DATEADD(day, -7, GETUTCDATE())");
+            "SELECT COUNT(*) FROM Songs WHERE CreatedAt >= DATEADD(day, -7, GETUTCDATE())");
         var todayPlays = await conn.ExecuteScalarAsync<int>(
             "SELECT ISNULL(SUM(PlayCount), 0) FROM Songs WHERE Status = 'active'");
 

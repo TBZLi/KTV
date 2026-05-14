@@ -23,6 +23,7 @@ CREATE TABLE Users (
     PasswordHash    NVARCHAR(256) NOT NULL,
     DisplayName     NVARCHAR(100) NOT NULL,
     Phone           NVARCHAR(20) NULL,
+    AvatarUrl       NVARCHAR(500) NULL,
     Balance         DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
     IsVip           BIT NOT NULL DEFAULT 0,
     Role            NVARCHAR(20) NOT NULL DEFAULT 'user',
@@ -122,25 +123,28 @@ INSERT INTO SystemSettings (SettingKey, SettingValue) VALUES
     ('business_hours', N'14:00 - 02:00'),
     ('holiday_pricing_enabled', N'true'),
     ('base_hourly_rate', N'120'),
+    ('room_type_multiplier_vip', N'1.5'),
+    ('room_type_multiplier_medium', N'1.3'),
+    ('room_type_multiplier_small', N'1.0'),
     ('log_retention_days', N'90'),
     ('sensitive_op_verification', N'false');
 
 -- Users (12 customers + 1 admin, password all: 123456)
 -- Using a simple hash for demo purposes
-INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Balance, IsVip, Role, Status, CreatedAt) VALUES
-    ('admin',    'demo_hash_admin',    N'系统管理员', '13800000000', 0,    0, 'admin', 'active', '2023-10-15 10:00'),
-    ('user_001', 'demo_hash', N'张三',   '13800000001', 500,   0, 'user',  'active',   '2023-10-25 10:00'),
-    ('VIP_002',  'demo_hash', N'李四',   '13800000002', 1200,  1, 'user',  'active',   '2023-10-25 11:30'),
-    ('test_003', 'demo_hash', N'王五',   '13800000003', 0,     0, 'user',  'disabled', '2023-10-24 15:45'),
-    ('user_004', 'demo_hash', N'赵六',   '13800000004', 350,   0, 'user',  'active',   '2023-10-23 09:15'),
-    ('VIP_005',  'demo_hash', N'钱七',   '13800000005', 2800,  1, 'user',  'active',   '2023-10-22 14:20'),
-    ('user_006', 'demo_hash', N'孙八',   '13800000006', 180,   0, 'user',  'active',   '2023-10-21 16:30'),
-    ('user_007', 'demo_hash', N'周九',   '13800000007', 0,     0, 'user',  'disabled', '2023-10-20 11:00'),
-    ('VIP_008',  'demo_hash', N'吴十',   '13800000008', 950,   1, 'user',  'active',   '2023-10-19 13:45'),
-    ('user_009', 'demo_hash', N'郑冬',   '13800000009', 420,   0, 'user',  'active',   '2023-10-18 10:30'),
-    ('user_010', 'demo_hash', N'冯雪',   '13800000010', 75,    0, 'user',  'active',   '2023-10-17 08:20'),
-    ('user_011', 'demo_hash', N'陈风',   '13800000011', 610,   0, 'user',  'active',   '2023-10-16 17:10'),
-    ('VIP_012',  'demo_hash', N'楚云',   '13800000012', 3200,  1, 'user',  'active',   '2023-10-15 12:00');
+INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, AvatarUrl, Balance, IsVip, Role, Status, CreatedAt) VALUES
+    ('admin',    'demo_hash_admin',    N'系统管理员', '13800000000', '/uploads/avatars/default.jpg', 0,    0, 'admin', 'active', '2023-10-15 10:00'),
+    ('user_001', 'demo_hash', N'张三',   '13800000001', '/uploads/avatars/default.jpg', 500,   0, 'user',  'active',   '2023-10-25 10:00'),
+    ('VIP_002',  'demo_hash', N'李四',   '13800000002', '/uploads/avatars/default.jpg', 1200,  1, 'user',  'active',   '2023-10-25 11:30'),
+    ('test_003', 'demo_hash', N'王五',   '13800000003', '/uploads/avatars/default.jpg', 0,     0, 'user',  'disabled', '2023-10-24 15:45'),
+    ('user_004', 'demo_hash', N'赵六',   '13800000004', '/uploads/avatars/default.jpg', 350,   0, 'user',  'active',   '2023-10-23 09:15'),
+    ('VIP_005',  'demo_hash', N'钱七',   '13800000005', '/uploads/avatars/default.jpg', 2800,  1, 'user',  'active',   '2023-10-22 14:20'),
+    ('user_006', 'demo_hash', N'孙八',   '13800000006', '/uploads/avatars/default.jpg', 180,   0, 'user',  'active',   '2023-10-21 16:30'),
+    ('user_007', 'demo_hash', N'周九',   '13800000007', '/uploads/avatars/default.jpg', 0,     0, 'user',  'disabled', '2023-10-20 11:00'),
+    ('VIP_008',  'demo_hash', N'吴十',   '13800000008', '/uploads/avatars/default.jpg', 950,   1, 'user',  'active',   '2023-10-19 13:45'),
+    ('user_009', 'demo_hash', N'郑冬',   '13800000009', '/uploads/avatars/default.jpg', 420,   0, 'user',  'active',   '2023-10-18 10:30'),
+    ('user_010', 'demo_hash', N'冯雪',   '13800000010', '/uploads/avatars/default.jpg', 75,    0, 'user',  'active',   '2023-10-17 08:20'),
+    ('user_011', 'demo_hash', N'陈风',   '13800000011', '/uploads/avatars/default.jpg', 610,   0, 'user',  'active',   '2023-10-16 17:10'),
+    ('VIP_012',  'demo_hash', N'楚云',   '13800000012', '/uploads/avatars/default.jpg', 3200,  1, 'user',  'active',   '2023-10-15 12:00');
 
 -- Rooms (24 rooms: 5 VIP + 9 Medium + 10 Small)
 INSERT INTO Rooms (RoomNumber, RoomType, Capacity, HourlyRate, Status, CurrentOrderId) VALUES
@@ -169,33 +173,14 @@ INSERT INTO Rooms (RoomNumber, RoomType, Capacity, HourlyRate, Status, CurrentOr
     ('S-009', 'Small',  4,  88.00,  'idle',     NULL),
     ('S-010', 'Small',  4,  88.00,  'in_use',   'ORD-8914');
 
--- Songs (25 songs, matching mock data exactly)
-INSERT INTO Songs (Title, Artist, Genre, Duration, CoverUrl, PlayCount, Status, CreatedAt) VALUES
-    (N'晴天',         N'周杰伦',       N'流行', 269, '', 999000, 'active', '2023-01-15'),
-    (N'起风了',       N'买辣椒也用券', N'流行', 325, '', 850000, 'active', '2023-01-20'),
-    (N'孤勇者',       N'陈奕迅',       N'流行', 262, '', 720000, 'active', '2023-02-01'),
-    (N'稻香',         N'周杰伦',       N'流行', 223, '', 600000, 'active', '2023-02-10'),
-    (N'海阔天空',     N'Beyond',       N'摇滚', 326, '', 580000, 'active', '2023-02-15'),
-    (N'平凡之路',     N'朴树',         N'民谣', 295, '', 520000, 'active', '2023-02-20'),
-    (N'光年之外',     N'邓紫棋',       N'流行', 235, '', 480000, 'active', '2023-03-01'),
-    (N'夜曲',         N'周杰伦',       N'流行', 226, '', 450000, 'active', '2023-03-05'),
-    (N'红玫瑰',       N'陈奕迅',       N'流行', 264, '', 430000, 'active', '2023-03-10'),
-    (N'后来',         N'刘若英',       N'流行', 337, '', 410000, 'active', '2023-03-15'),
-    (N'倔强',         N'五月天',       N'摇滚', 264, '', 390000, 'active', '2023-03-20'),
-    (N'成都',         N'赵雷',         N'民谣', 329, '', 370000, 'active', '2023-03-25'),
-    (N'告白气球',     N'周杰伦',       N'流行', 215, '', 350000, 'active', '2023-04-01'),
-    (N'说散就散',     N'袁娅维',       N'R&B',  237, '', 330000, 'active', '2023-04-05'),
-    (N'南山南',       N'马頔',         N'民谣', 312, '', 310000, 'active', '2023-04-10'),
-    (N'体面',         N'于文文',       N'流行', 268, '', 290000, 'active', '2023-04-15'),
-    (N'消愁',         N'毛不易',       N'民谣', 315, '', 270000, 'active', '2023-04-20'),
-    (N'李白',         N'李荣浩',       N'流行', 264, '', 250000, 'active', '2023-04-25'),
-    (N'泡沫',         N'邓紫棋',       N'流行', 270, '', 230000, 'active', '2023-05-01'),
-    (N'无条件',       N'陈奕迅',       N'流行', 273, '', 210000, 'active', '2023-05-05'),
-    (N'以父之名',     N'周杰伦',       N'嘻哈', 341, '', 195000, 'active', '2023-05-10'),
-    (N'富士山下',     N'陈奕迅',       N'流行', 284, '', 180000, 'active', '2023-05-15'),
-    (N'春风十里',     N'鹿先森乐队',   N'民谣', 305, '', 165000, 'active', '2023-05-20'),
-    (N'安河桥',       N'宋冬野',       N'民谣', 338, '', 150000, 'active', '2023-05-25'),
-    (N'玫瑰花的葬礼', N'许嵩',         N'流行', 258, '', 140000, 'active', '2023-06-01');
+-- Songs (6 songs with real files)
+INSERT INTO Songs (Title, Artist, Genre, Duration, CoverUrl, MediaUrl, PlayCount, Status, CreatedAt) VALUES
+    (N'魂牵梦绕想着你',     N'倪尔萍',           N'流行', 203, '/uploads/covers/default.jpg', N'/uploads/music/倪尔萍 - 魂牵梦绕想着你 [mqms].mp3', 0, 'active', GETUTCDATE()),
+    (N'老公最好',           N'弓秀丽',           N'流行', 219, '/uploads/covers/default.jpg', N'/uploads/music/弓秀丽 - 老公最好 [mqms].mp3', 0, 'active', GETUTCDATE()),
+    (N'爱到最后就是痛',     N'涓子&落叶摇情',    N'流行', 220, '/uploads/covers/default.jpg', N'/uploads/music/涓子&落叶摇情 - 爱到最后就是痛 [mqms].mp3', 0, 'active', GETUTCDATE()),
+    (N'你的眼角流着我的泪', N'王韵',             N'流行', 216, '/uploads/covers/default.jpg', N'/uploads/music/王韵 - 你的眼角流着我的泪 [mqms2].mp3', 0, 'active', GETUTCDATE()),
+    (N'一分不是爱，一分是伤害', N'网络歌手',       N'流行', 191, '/uploads/covers/default.jpg', N'/uploads/music/网络歌手 - 一分不是爱，一分是伤害 [mqms].mp3', 0, 'active', GETUTCDATE()),
+    (N'爱我是你说的谎',     N'项泽云',           N'流行', 214, '/uploads/covers/default.jpg', N'/uploads/music/项泽云 - 爱我是你说的谎 (Live) [mqms].mp3', 0, 'active', GETUTCDATE());
 
 -- Orders (15 orders, matching mock data)
 INSERT INTO Orders (Id, UserId, RoomId, OrderType, Amount, Status, StartTime, CreatedAt) VALUES
@@ -215,31 +200,21 @@ INSERT INTO Orders (Id, UserId, RoomId, OrderType, Amount, Status, StartTime, Cr
     ('ORD-8911', 3,  8,  'room', 175.00,  'completed',   '2023-10-25 19:00', '2023-10-25 19:00'),
     ('ORD-8910', 4,  16, 'room', 55.00,   'cancelled',   '2023-10-25 18:00', '2023-10-25 18:00');
 
--- PlayQueue (12 songs queued in room 1)
+-- PlayQueue (6 songs queued in room 1)
 INSERT INTO PlayQueue (RoomId, SongId, OrderedByUserId, SortOrder, Status, CreatedAt) VALUES
-    (1, 2,  2, 1,  'queued', '2023-10-26 14:00'),
-    (1, 3,  2, 2,  'queued', '2023-10-26 14:05'),
-    (1, 5,  3, 3,  'queued', '2023-10-26 14:10'),
-    (1, 7,  2, 4,  'queued', '2023-10-26 14:15'),
-    (1, 9,  3, 5,  'queued', '2023-10-26 14:20'),
-    (1, 11, 2, 6,  'queued', '2023-10-26 14:22'),
-    (1, 13, 3, 7,  'queued', '2023-10-26 14:25'),
-    (1, 15, 2, 8,  'queued', '2023-10-26 14:28'),
-    (1, 18, 3, 9,  'queued', '2023-10-26 14:30'),
-    (1, 20, 2, 10, 'queued', '2023-10-26 14:32'),
-    (1, 22, 3, 11, 'queued', '2023-10-26 14:35'),
-    (1, 24, 2, 12, 'queued', '2023-10-26 14:38');
+    (1, 1, 2, 1,  'queued', '2023-10-26 14:00'),
+    (1, 2, 2, 2,  'queued', '2023-10-26 14:05'),
+    (1, 3, 3, 3,  'queued', '2023-10-26 14:10'),
+    (1, 4, 2, 4,  'queued', '2023-10-26 14:15'),
+    (1, 5, 3, 5,  'queued', '2023-10-26 14:20'),
+    (1, 6, 2, 6,  'queued', '2023-10-26 14:22');
 
 -- Favorites (user 2 = 张三's favorites)
 INSERT INTO Favorites (UserId, SongId, CreatedAt) VALUES
     (2, 1,  '2023-10-20'),
     (2, 3,  '2023-10-21'),
     (2, 5,  '2023-10-22'),
-    (2, 6,  '2023-10-23'),
-    (2, 12, '2023-10-24'),
-    (2, 8,  '2023-10-24'),
-    (2, 14, '2023-10-25'),
-    (2, 17, '2023-10-25');
+    (2, 6,  '2023-10-23');
 
 PRINT N'=== 数据库初始化完成 ===';
 PRINT N'Tables: Users, Rooms, Songs, Orders, PlayQueue, Favorites, SystemSettings';

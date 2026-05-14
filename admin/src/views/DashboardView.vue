@@ -102,7 +102,13 @@
                 class="text-xl font-bold font-headline w-6 text-center"
                 :class="rankColor(index)"
               >{{ index + 1 }}</span>
-              <div class="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+              <img
+                v-if="song.coverUrl"
+                :src="'http://localhost:5276' + song.coverUrl"
+                class="w-12 h-12 rounded-lg overflow-hidden shrink-0 object-cover"
+                :alt="song.title"
+              />
+              <div v-else class="w-12 h-12 bg-slate-200 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
                 <span class="material-symbols-outlined text-slate-400 text-lg">music_note</span>
               </div>
               <div>

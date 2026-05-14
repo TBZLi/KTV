@@ -54,7 +54,7 @@ public class DashboardService
 
     public async Task<List<Song>> GetTopSongsAsync()
     {
-        var result = await _songRepo.GetListAsync(null, null, 1, 10);
+        var result = await _songRepo.GetListAsync(null, null, "active", 1, 10);
         return result.Items;
     }
 }

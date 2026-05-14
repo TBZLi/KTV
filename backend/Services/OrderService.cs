@@ -53,6 +53,15 @@ public class OrderService
         if (room == null) throw new Exception("房间不存在");
         if (room.Status == "in_use") throw new Exception($"房间 {room.RoomNumber} 正在使用中，无法新建订单");
 
+        // VIP room restriction
+        if (room.RoomType == "VIP" && !user.IsVip)
+            throw new Exception("VIP 包厢仅限 VIP 用户使用");
+
+        // One active order per user
+        var existingOrders = await _orderRepo.GetInProgressByUserAsync(userId);
+        if (existingOrders.Count > 0)
+            throw new Exception("该用户已有进行中订单，请先完成或取消当前订单");
+
         // Calculate amount: override > hours * rate (with holiday multiplier)
         decimal amount;
         if (amountOverride.HasValue)
@@ -66,15 +75,22 @@ public class OrderService
                 || (settings.TryGetValue("base_hourly_rate", out var rateStr2) && decimal.TryParse(rateStr2, out rate1))
                 ? rate1 : 120m;
 
+            // Room type multiplier (always applied)
+            var rtKey = room.RoomType.ToLower() == "vip" ? "room_type_multiplier_vip"
+                : room.RoomType.ToLower() == "medium" ? "room_type_multiplier_medium"
+                : "room_type_multiplier_small";
+            var roomTypeMultiplier = settings.TryGetValue(rtKey, out var rtStr) && decimal.TryParse(rtStr, out var rtVal)
+                ? rtVal : (room.RoomType == "VIP" ? 1.5m : room.RoomType == "Medium" ? 1.3m : 1.0m);
+
             // Apply holiday multiplier if enabled and active
-            decimal multiplier = 1.0m;
+            decimal holidayMultiplier = 1.0m;
             if (settings.TryGetValue("holidayPricingEnabled", out var hpEnabled) && hpEnabled == "true"
                 || settings.TryGetValue("holiday_pricing_enabled", out hpEnabled) && hpEnabled == "true")
             {
                 var activeHolidays = await _holidayRepo.GetActiveHolidaysAsync(DateTime.UtcNow);
                 if (activeHolidays.Count > 0)
                 {
-                    multiplier = room.RoomType switch
+                    holidayMultiplier = room.RoomType switch
                     {
                         "VIP" => activeHolidays.Max(h => h.VipMultiplier),
                         "Medium" => activeHolidays.Max(h => h.MediumMultiplier),
@@ -84,7 +100,7 @@ public class OrderService
                 }
             }
 
-            amount = hours.Value * hourlyRate * multiplier;
+            amount = hours.Value * hourlyRate * roomTypeMultiplier * holidayMultiplier;
             amount = Math.Round(amount, 2);
         }
         else

@@ -39,7 +39,7 @@ public class AccountsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateAccountRequest request)
     {
-        await _accountService.UpdateAsync(id, request.DisplayName, request.Phone, request.IsVip);
+        await _accountService.UpdateAsync(id, request.DisplayName, request.Phone, request.AvatarUrl, request.IsVip);
         return Ok();
     }
 

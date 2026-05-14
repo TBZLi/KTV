@@ -37,7 +37,13 @@ onMounted(() => {
         class="group flex items-center gap-6 p-4 rounded-lg hover:bg-surface-container-low transition-all duration-200"
       >
         <!-- Album cover -->
-        <div class="w-20 h-20 bg-slate-200 rounded-lg flex-shrink-0 shadow-sm overflow-hidden flex items-center justify-center">
+        <img
+          v-if="favorite.song.coverUrl"
+          :src="'http://localhost:5276' + favorite.song.coverUrl"
+          class="w-20 h-20 rounded-lg flex-shrink-0 shadow-sm object-cover"
+          :alt="favorite.song.title"
+        />
+        <div v-else class="w-20 h-20 bg-slate-200 rounded-lg flex-shrink-0 shadow-sm overflow-hidden flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400 text-lg opacity-50">image</span>
         </div>
 

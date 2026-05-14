@@ -90,11 +90,15 @@ onMounted(() => {
         :key="song.id"
         class="group flex items-center gap-6 p-4 bg-white hover:bg-surface-container-low rounded-lg transition-all duration-300 active:scale-[0.99]"
       >
-        <!-- Album cover placeholder -->
-        <div class="w-20 h-20 bg-slate-200 rounded-xl flex-shrink-0 shadow-inner flex items-center justify-center">
-          <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-            <span class="material-symbols-outlined text-slate-400">image</span>
-          </span>
+        <!-- Album cover -->
+        <img
+          v-if="song.coverUrl"
+          :src="'http://localhost:5276' + song.coverUrl"
+          class="w-20 h-20 rounded-xl flex-shrink-0 shadow-inner object-cover"
+          :alt="song.title"
+        />
+        <div v-else class="w-20 h-20 bg-slate-200 rounded-xl flex-shrink-0 shadow-inner flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-400">image</span>
         </div>
 
         <!-- Song info grid -->

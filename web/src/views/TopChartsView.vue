@@ -73,7 +73,13 @@ onMounted(() => {
         </span>
 
         <!-- Album cover -->
-        <div class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
+        <img
+          v-if="song.coverUrl"
+          :src="'http://localhost:5276' + song.coverUrl"
+          class="w-16 h-16 rounded shrink-0 shadow-sm object-cover"
+          :alt="song.title"
+        />
+        <div v-else class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>
         </div>
 

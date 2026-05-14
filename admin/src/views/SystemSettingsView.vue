@@ -112,6 +112,55 @@
             </div>
           </div>
 
+          <div class="space-y-2">
+            <label class="block text-sm font-semibold text-on-surface-variant">包厢类型倍率</label>
+            <p class="text-xs text-outline mb-3">实际单价 = 单价基数 × 包厢类型倍率（如 VIP 1.5x = 180元/小时）</p>
+            <div class="grid grid-cols-3 gap-4 max-w-2xl">
+              <div>
+                <label class="block text-xs text-on-surface-variant mb-1">VIP 包厢</label>
+                <div class="relative">
+                  <input
+                    v-model.number="settings.roomTypeMultiplierVip"
+                    class="w-full bg-surface-container-high text-on-surface placeholder-outline border-none rounded-lg focus:ring-2 focus:ring-primary h-12 pr-10 text-center transition-all"
+                    placeholder="1.5"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-outline text-sm">x</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-on-surface-variant mb-1">中包厢</label>
+                <div class="relative">
+                  <input
+                    v-model.number="settings.roomTypeMultiplierMedium"
+                    class="w-full bg-surface-container-high text-on-surface placeholder-outline border-none rounded-lg focus:ring-2 focus:ring-primary h-12 pr-10 text-center transition-all"
+                    placeholder="1.3"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-outline text-sm">x</span>
+                </div>
+              </div>
+              <div>
+                <label class="block text-xs text-on-surface-variant mb-1">小包厢</label>
+                <div class="relative">
+                  <input
+                    v-model.number="settings.roomTypeMultiplierSmall"
+                    class="w-full bg-surface-container-high text-on-surface placeholder-outline border-none rounded-lg focus:ring-2 focus:ring-primary h-12 pr-10 text-center transition-all"
+                    placeholder="1.0"
+                    type="number"
+                    step="0.1"
+                    min="0.1"
+                  />
+                  <span class="absolute right-3 top-1/2 -translate-y-1/2 text-outline text-sm">x</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="flex items-center justify-between p-4 bg-surface rounded-lg">
             <div>
               <h3 class="font-semibold text-on-surface">开启节假日动态定价</h3>
@@ -215,6 +264,7 @@
                 <option value="delete">删除</option>
                 <option value="balance_adjust">余额调整</option>
                 <option value="disable">禁用用户</option>
+                <option value="vip_change">切换 VIP</option>
                 <option value="refund">退款</option>
                 <option value="cancel">取消</option>
                 <option value="complete">完成</option>
@@ -426,6 +476,9 @@ const settings = ref<SystemSettings>({
   businessHours: '',
   holidayPricingEnabled: false,
   baseHourlyRate: 0,
+  roomTypeMultiplierVip: 1.5,
+  roomTypeMultiplierMedium: 1.3,
+  roomTypeMultiplierSmall: 1.0,
   logRetentionDays: 30,
   sensitiveOpVerification: false,
   verifyDeleteOrder: true,
@@ -457,6 +510,7 @@ const verificationItems = [
   { key: 'verifyDeleteOrder', label: '删除订单' },
   { key: 'verifyBalanceAdjust', label: '余额调整' },
   { key: 'verifyDisableUser', label: '禁用/启用用户' },
+  { key: 'verifyToggleVip', label: '切换用户 VIP 状态' },
   { key: 'verifyBatchSongStatus', label: '批量上下架歌曲' },
   { key: 'verifyModifySettings', label: '修改系统设置' },
   { key: 'verifyModifyAdmin', label: '修改管理员账号' },
@@ -573,6 +627,7 @@ function getLogTypeLabel(type: string) {
     restore: '恢复', login: '登录', toggle_status: '状态切换',
     update_status: '状态更新', end_session: '结束会话',
     change_username: '改用户名', change_password: '改密码',
+    vip_change: '切换 VIP',
   }
   return map[type] || type
 }
@@ -592,7 +647,10 @@ async function handleSave() {
     const camelToSnake: Record<string, string> = {
       storeName: 'store_name', storePhone: 'store_phone', storeAddress: 'store_address',
       businessHours: 'business_hours', holidayPricingEnabled: 'holiday_pricing_enabled',
-      baseHourlyRate: 'base_hourly_rate', logRetentionDays: 'log_retention_days',
+      baseHourlyRate: 'base_hourly_rate',
+      roomTypeMultiplierVip: 'room_type_multiplier_vip',
+      roomTypeMultiplierMedium: 'room_type_multiplier_medium',
+      roomTypeMultiplierSmall: 'room_type_multiplier_small', logRetentionDays: 'log_retention_days',
       sensitiveOpVerification: 'sensitive_op_verification',
       verifyDeleteOrder: 'verify_delete_order', verifyBalanceAdjust: 'verify_balance_adjust',
       verifyDisableUser: 'verify_disable_user', verifyBatchSongStatus: 'verify_batch_song_status',
@@ -711,6 +769,9 @@ onMounted(async () => {
       store_name: 'storeName', store_phone: 'storePhone', store_address: 'storeAddress',
       business_hours: 'businessHours', holiday_pricing_enabled: 'holidayPricingEnabled',
       base_hourly_rate: 'baseHourlyRate', log_retention_days: 'logRetentionDays',
+      room_type_multiplier_vip: 'roomTypeMultiplierVip',
+      room_type_multiplier_medium: 'roomTypeMultiplierMedium',
+      room_type_multiplier_small: 'roomTypeMultiplierSmall',
       verify_delete_order: 'verifyDeleteOrder', verify_balance_adjust: 'verifyBalanceAdjust',
       verify_disable_user: 'verifyDisableUser', verify_batch_song_status: 'verifyBatchSongStatus',
       verify_modify_settings: 'verifyModifySettings', verify_modify_admin: 'verifyModifyAdmin',

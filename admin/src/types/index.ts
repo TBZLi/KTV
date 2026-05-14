@@ -2,6 +2,7 @@ export interface User {
   id: number
   username: string
   displayName: string
+  avatarUrl?: string
   balance: number
   isVip: boolean
   status: 'active' | 'disabled'
@@ -21,11 +22,35 @@ export interface Song {
   title: string
   artist: string
   genre: string
+  language: string | null
   duration: number
-  coverUrl: string
+  fileSize: number | null
+  coverUrl: string | null
+  mediaUrl: string | null
   playCount: number
   status: 'active' | 'inactive'
   createdAt: string
+  updatedAt: string
+}
+
+export interface SongDetail {
+  id: number
+  title: string
+  artist: string
+  genre: string
+  language: string | null
+  duration: number
+  fileSize: number | null
+  coverUrl: string | null
+  mediaUrl: string | null
+  playCount: number
+  status: string
+  createdAt: string
+  updatedAt: string
+  favoriteCount: number
+  ranking: number
+  rating: number
+  commentCount: number
 }
 
 export interface Order {

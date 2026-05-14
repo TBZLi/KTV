@@ -60,7 +60,13 @@ onMounted(() => {
     <!-- Now Playing hero card -->
     <div v-if="nowPlaying" class="bg-surface-container-lowest rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
       <!-- Large album cover -->
-      <div class="w-48 h-48 bg-slate-200 rounded-lg flex-shrink-0 flex items-center justify-center text-slate-400 text-center font-bold px-4">
+      <img
+        v-if="queue.length > 0 && queue[0].coverUrl"
+        :src="'http://localhost:5276' + queue[0].coverUrl"
+        class="w-48 h-48 rounded-lg flex-shrink-0 object-cover"
+        :alt="nowPlaying.title"
+      />
+      <div v-else class="w-48 h-48 bg-slate-200 rounded-lg flex-shrink-0 flex items-center justify-center text-slate-400 text-center font-bold px-4">
         <span class="material-symbols-outlined text-6xl text-slate-400">music_note</span>
       </div>
       <div class="flex-grow">
@@ -100,7 +106,13 @@ onMounted(() => {
         class="flex items-center px-8 py-6 hover:bg-surface-container-low transition-colors group"
       >
         <span class="w-8 text-slate-400 font-bold">{{ String(index + 1).padStart(2, '0') }}</span>
-        <div class="w-12 h-12 bg-slate-200 rounded-lg mx-6 flex-shrink-0 flex items-center justify-center">
+        <img
+          v-if="item.coverUrl"
+          :src="'http://localhost:5276' + item.coverUrl"
+          class="w-12 h-12 rounded-lg mx-6 flex-shrink-0 object-cover"
+          :alt="item.songTitle"
+        />
+        <div v-else class="w-12 h-12 bg-slate-200 rounded-lg mx-6 flex-shrink-0 flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400 text-sm">image</span>
         </div>
         <div class="flex-grow grid grid-cols-4 items-center">

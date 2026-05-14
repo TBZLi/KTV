@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { DashboardStats, Room, Song, Order, User, PaginatedResult, SystemSettings, Holiday, OperationLog } from '@/types'
+import type { DashboardStats, Room, Song, SongDetail, Order, User, PaginatedResult, SystemSettings, Holiday, OperationLog } from '@/types'
 import type { SongStats } from '@/types'
 
 export const dashboardApi = {
@@ -19,13 +19,39 @@ export const roomsApi = {
 }
 
 export const songsApi = {
-  getList: (params: { search?: string; genre?: string; page?: number; pageSize?: number }) =>
+  getList: (params: { search?: string; genre?: string; status?: string; page?: number; pageSize?: number }) =>
     apiClient.get<PaginatedResult<Song>>('/api/songs', { params }),
   getStats: () => apiClient.get<SongStats>('/api/songs/stats'),
+  getById: (id: number) => apiClient.get<Song>(`/api/songs/${id}`),
+  getDetail: (id: number) => apiClient.get<SongDetail>(`/api/songs/${id}/detail`),
   create: (data: Partial<Song>) => apiClient.post('/api/songs', data),
   update: (id: number, data: Partial<Song>) => apiClient.put(`/api/songs/${id}`, data),
   delete: (id: number) => apiClient.delete(`/api/songs/${id}`),
   getGenres: () => apiClient.get<string[]>('/api/songs/genres'),
+}
+
+export const uploadApi = {
+  avatar: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<{ url: string; fileName: string }>('/api/upload/avatar', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  cover: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<{ url: string; fileName: string }>('/api/upload/cover', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  music: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<{ url: string; fileName: string }>('/api/upload/music', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const ordersApi = {

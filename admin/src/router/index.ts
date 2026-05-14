@@ -25,6 +25,12 @@ const router = createRouter({
       meta: { title: '歌曲管理', icon: 'library_music', requiresAuth: true },
     },
     {
+      path: '/songs/:id',
+      name: 'SongDetail',
+      component: () => import('@/views/SongDetailView.vue'),
+      meta: { title: '歌曲详情', requiresAuth: true },
+    },
+    {
       path: '/orders',
       name: 'Orders',
       component: () => import('@/views/OrderManagementView.vue'),
