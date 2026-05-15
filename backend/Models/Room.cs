@@ -3,12 +3,11 @@ namespace backend.Models;
 public class Room
 {
     public int Id { get; set; }
-    public string RoomNumber { get; set; } = string.Empty;
-    public string RoomType { get; set; } = string.Empty;
-    public int Capacity { get; set; }
-    public decimal HourlyRate { get; set; }
-    public string Status { get; set; } = "idle";
-    public string? CurrentOrderId { get; set; }
+    public string RoomCode { get; set; } = string.Empty;
+    public string Status { get; set; } = "active";
+    public int CreatedByUserId { get; set; }
+    public int CurrentUsers { get; set; }
+    public DateTime? IdleCloseAt { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime UpdatedAt { get; set; }
+    public DateTime? ClosedAt { get; set; }
 }

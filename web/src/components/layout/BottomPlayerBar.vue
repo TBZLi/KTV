@@ -4,7 +4,7 @@ import { usePlayerStore } from '@/stores/player'
 
 const player = usePlayerStore()
 
-const API_BASE = 'http://localhost:5276'
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const isDraggingProgress = ref(false)
 

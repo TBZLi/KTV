@@ -2,8 +2,9 @@ export interface User {
   id: number
   username: string
   displayName: string
-  balance: number
-  isVip: boolean
+  phone?: string
+  email?: string
+  avatarUrl?: string
   status: 'active' | 'disabled'
   createdAt: string
 }
@@ -44,9 +45,9 @@ export interface Favorite {
 
 export interface RoomInfo {
   roomId: number
-  roomNumber: string
-  roomType: string
+  roomCode: string
   songsQueued: number
+  onlineUsers: number
 }
 
 export interface NowPlaying {

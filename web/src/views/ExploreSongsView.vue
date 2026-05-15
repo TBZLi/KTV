@@ -1,15 +1,25 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { songsApi } from '@/api'
+import { songsApi, feedbacksApi, favoritesApi } from '@/api'
 import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
 import { formatDuration } from '@/utils/format'
 
 const { orderSong } = useSongOrder()
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 const genres = ref<string[]>([])
 const selectedGenre = ref<string>('')
 const songs = ref<Song[]>([])
 const favoritedSongIds = ref<Set<number>>(new Set())
+
+// Feedback dialog state
+const showFeedbackDialog = ref(false)
+const feedbackType = ref('request_song')
+const feedbackSongName = ref('')
+const feedbackArtist = ref('')
+const feedbackDescription = ref('')
+const feedbackSuccess = ref(false)
+const feedbackLoading = ref(false)
 
 async function loadGenres() {
   const { data } = await songsApi.getGenres()
@@ -30,22 +40,63 @@ function selectGenre(genre: string) {
   loadSongs()
 }
 
-function toggleFavorite(songId: number) {
-  if (favoritedSongIds.value.has(songId)) {
-    favoritedSongIds.value.delete(songId)
-  } else {
-    favoritedSongIds.value.add(songId)
+async function loadFavorites() {
+  try {
+    const { data } = await favoritesApi.getList()
+    favoritedSongIds.value = new Set(data.map(f => f.songId))
+  } catch { /* ignore */ }
+}
+
+async function toggleFavorite(songId: number) {
+  try {
+    if (favoritedSongIds.value.has(songId)) {
+      await favoritesApi.remove(songId)
+      favoritedSongIds.value.delete(songId)
+    } else {
+      await favoritesApi.add(songId)
+      favoritedSongIds.value.add(songId)
+    }
+    favoritedSongIds.value = new Set(favoritedSongIds.value)
+  } catch (err: any) {
+    alert(err.response?.data?.message || '操作失败')
   }
-  favoritedSongIds.value = new Set(favoritedSongIds.value)
 }
 
 function isFavorited(songId: number) {
   return favoritedSongIds.value.has(songId)
 }
 
+function openFeedbackDialog() {
+  feedbackType.value = 'request_song'
+  feedbackSongName.value = ''
+  feedbackArtist.value = ''
+  feedbackDescription.value = ''
+  feedbackSuccess.value = false
+  showFeedbackDialog.value = true
+}
+
+async function submitFeedback() {
+  feedbackLoading.value = true
+  try {
+    await feedbacksApi.create({
+      feedbackType: feedbackType.value,
+      songName: feedbackSongName.value || undefined,
+      artist: feedbackArtist.value || undefined,
+      description: feedbackDescription.value || undefined,
+    })
+    feedbackSuccess.value = true
+    setTimeout(() => { showFeedbackDialog.value = false }, 1500)
+  } catch (err: any) {
+    alert(err.response?.data?.message || '提交失败')
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
 onMounted(() => {
   loadGenres()
   loadSongs()
+  loadFavorites()
 })
 </script>
 
@@ -95,10 +146,10 @@ onMounted(() => {
         <!-- Album cover -->
         <img
           v-if="song.coverUrl"
-          :src="'http://localhost:5276' + song.coverUrl"
+          :src="API_BASE + song.coverUrl"
           class="w-20 h-20 rounded-xl flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="song.title"
-          @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
+          @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
         <div v-else class="w-20 h-20 bg-slate-200 rounded-xl flex-shrink-0 shadow-inner flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>
@@ -134,6 +185,58 @@ onMounted(() => {
             </button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Feedback FAB -->
+    <button
+      @click="openFeedbackDialog"
+      class="fixed bottom-28 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-40"
+      title="反馈"
+    >
+      <span class="material-symbols-outlined">feedback</span>
+    </button>
+
+    <!-- Feedback Dialog -->
+    <div v-if="showFeedbackDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showFeedbackDialog = false">
+      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
+        <template v-if="!feedbackSuccess">
+          <h3 class="text-xl font-display font-bold text-on-surface">用户反馈</h3>
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">反馈类型</label>
+              <select v-model="feedbackType" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
+                <option value="request_song">请求添加歌曲</option>
+                <option value="report_error">歌曲信息纠错</option>
+                <option value="other">其他建议</option>
+              </select>
+            </div>
+            <div v-if="feedbackType === 'request_song' || feedbackType === 'report_error'">
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">歌曲名称 {{ feedbackType === 'request_song' ? '(必填)' : '' }}</label>
+              <input v-model="feedbackSongName" :required="feedbackType === 'request_song'" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+            </div>
+            <div v-if="feedbackType === 'request_song' || feedbackType === 'report_error'">
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">歌手（可选）</label>
+              <input v-model="feedbackArtist" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-on-surface-variant mb-1">补充说明（可选）</label>
+              <textarea v-model="feedbackDescription" rows="3" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none resize-none"></textarea>
+            </div>
+          </div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button @click="showFeedbackDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
+            <button @click="submitFeedback" :disabled="feedbackLoading" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+              {{ feedbackLoading ? '提交中...' : '提交' }}
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <div class="text-center py-8">
+            <span class="material-symbols-outlined text-5xl text-primary mb-4">check_circle</span>
+            <p class="text-lg font-semibold text-on-surface">反馈已提交，感谢您的建议</p>
+          </div>
+        </template>
       </div>
     </div>
   </div>

@@ -9,7 +9,7 @@ export interface PlayerTrack {
   mediaUrl: string
 }
 
-const API_BASE = 'http://localhost:5276'
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 export const usePlayerStore = defineStore('player', () => {
   const audio = new Audio()

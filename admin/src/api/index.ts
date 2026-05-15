@@ -1,10 +1,10 @@
 import { apiClient } from './client'
-import type { DashboardStats, Room, Song, SongDetail, Order, User, PaginatedResult, SystemSettings, Holiday, OperationLog } from '@/types'
+import type { DashboardStats, Room, RoomRequest, Feedback, Song, SongDetail, User, PaginatedResult, SystemSettings, OperationLog } from '@/types'
 import type { SongStats } from '@/types'
 
 export const dashboardApi = {
-  getStats: (params?: { from?: string; to?: string }) => apiClient.get<DashboardStats>('/api/dashboard/stats', { params }),
-  getLatestOrders: () => apiClient.get<Order[]>('/api/dashboard/latest-orders'),
+  getStats: () => apiClient.get<DashboardStats>('/api/dashboard/stats'),
+  getLatestRooms: () => apiClient.get('/api/dashboard/latest-rooms'),
   getTopSongs: () => apiClient.get<Song[]>('/api/dashboard/top-songs'),
 }
 
@@ -12,10 +12,23 @@ export const roomsApi = {
   getList: (params: { status?: string; search?: string; page?: number; pageSize?: number }) =>
     apiClient.get<PaginatedResult<Room>>('/api/rooms', { params }),
   getById: (id: number) => apiClient.get<Room>(`/api/rooms/${id}`),
-  updateStatus: (id: number, status: string) =>
-    apiClient.put(`/api/rooms/${id}/status`, { status }),
-  endSession: (id: number) =>
-    apiClient.post(`/api/rooms/${id}/end-session`),
+  closeRoom: (id: number) => apiClient.post(`/api/rooms/${id}/close`),
+  getRoomUsers: (id: number) => apiClient.get<{ id: number; username: string; displayName: string; avatarUrl: string }[]>(`/api/room/${id}/users`),
+}
+
+export const roomRequestsApi = {
+  getList: (params: { status?: string; page?: number; pageSize?: number }) =>
+    apiClient.get<PaginatedResult<RoomRequest>>('/api/roomrequests', { params }),
+  approve: (id: number) => apiClient.post(`/api/roomrequests/${id}/approve`),
+  reject: (id: number) => apiClient.post(`/api/roomrequests/${id}/reject`),
+  getPendingCount: () => apiClient.get<{ count: number }>('/api/roomrequests/pending-count'),
+}
+
+export const feedbacksApi = {
+  getList: (params: { status?: string; search?: string; page?: number; pageSize?: number }) =>
+    apiClient.get<PaginatedResult<Feedback>>('/api/feedbacks', { params }),
+  markProcessed: (id: number) => apiClient.post(`/api/feedbacks/${id}/process`),
+  getPendingCount: () => apiClient.get<{ count: number }>('/api/feedbacks/pending-count'),
 }
 
 export const songsApi = {
@@ -54,33 +67,16 @@ export const uploadApi = {
   },
 }
 
-export const ordersApi = {
-  getList: (params: { status?: string; searchField?: string; searchKeyword?: string; page?: number; pageSize?: number }) =>
-    apiClient.get<PaginatedResult<Order>>('/api/orders', { params }),
-  getById: (id: string) => apiClient.get<Order>(`/api/orders/${id}`),
-  create: (data: { userId: number; roomId: number; hours?: number; amount?: number }) =>
-    apiClient.post('/api/orders', data),
-  refund: (id: string) => apiClient.post(`/api/orders/${id}/refund`),
-  complete: (id: string) => apiClient.post(`/api/orders/${id}/complete`),
-  cancel: (id: string) => apiClient.post(`/api/orders/${id}/cancel`),
-  restore: (id: string) => apiClient.post(`/api/orders/${id}/restore`),
-  delete: (id: string) => apiClient.delete(`/api/orders/${id}`),
-}
-
 export const accountsApi = {
   getList: (params: { search?: string; status?: string; page?: number; pageSize?: number }) =>
     apiClient.get<PaginatedResult<User>>('/api/accounts', { params }),
   getById: (id: number) => apiClient.get<User>(`/api/accounts/${id}`),
   create: (data: { username: string; password: string; displayName: string; phone?: string }) =>
     apiClient.post('/api/accounts', data),
-  update: (id: number, data: { displayName?: string; phone?: string; isVip?: boolean }) =>
+  update: (id: number, data: { displayName?: string; phone?: string }) =>
     apiClient.put(`/api/accounts/${id}`, data),
-  recharge: (id: number, amount: number) =>
-    apiClient.post(`/api/accounts/${id}/recharge`, { amount }),
   toggleStatus: (id: number) =>
     apiClient.put(`/api/accounts/${id}/toggle-status`),
-  getDisablePreview: (id: number) =>
-    apiClient.get<{ inProgressCount: number }>(`/api/accounts/${id}/disable-preview`),
   disable: (id: number) =>
     apiClient.post(`/api/accounts/${id}/disable`),
 }
@@ -93,13 +89,6 @@ export const settingsApi = {
     apiClient.post('/api/settings/admin-account/username', data),
   updateAdminPassword: (data: { currentPassword: string; newPassword: string; confirmPassword: string }) =>
     apiClient.post('/api/settings/admin-account/password', data),
-}
-
-export const holidaysApi = {
-  getAll: () => apiClient.get<Holiday[]>('/api/holidays'),
-  create: (data: { startDate: string; endDate: string; vipMultiplier: number; mediumMultiplier: number; smallMultiplier: number }) =>
-    apiClient.post('/api/holidays', data),
-  delete: (id: number) => apiClient.delete(`/api/holidays/${id}`),
 }
 
 export const operationLogsApi = {

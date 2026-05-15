@@ -1,16 +1,7 @@
 import { ref } from 'vue'
-import { roomApi, ordersApi } from '@/api'
+import { roomApi } from '@/api'
 import { usePlayerStore } from '@/stores/player'
 import type { Song } from '@/types'
-
-let cachedRoomId: number | null = null
-
-async function getRoomId(): Promise<number> {
-  if (cachedRoomId) return cachedRoomId
-  const { data } = await roomApi.getCurrent()
-  cachedRoomId = data.roomId
-  return cachedRoomId
-}
 
 export function useSongOrder() {
   const player = usePlayerStore()
@@ -20,8 +11,8 @@ export function useSongOrder() {
     if (ordering.value) return
     ordering.value = true
     try {
-      const roomId = await getRoomId()
-      await ordersApi.orderSong(song.id, roomId)
+      // backend ignores roomId - it finds the user's room automatically
+      await roomApi.orderSong(song.id, 0)
 
       player.addToQueue({
         songId: song.id,
@@ -30,6 +21,9 @@ export function useSongOrder() {
         coverUrl: song.coverUrl,
         mediaUrl: song.mediaUrl,
       })
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.response?.data || '点歌失败'
+      alert(msg)
     } finally {
       ordering.value = false
     }

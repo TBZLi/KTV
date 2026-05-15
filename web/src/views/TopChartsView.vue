@@ -6,6 +6,7 @@ import type { Song } from '@/types'
 import { formatPlayCount } from '@/utils/format'
 
 const { orderSong } = useSongOrder()
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 type ChartPeriod = 'daily' | 'weekly'
 
@@ -78,10 +79,10 @@ onMounted(() => {
         <!-- Album cover -->
         <img
           v-if="song.coverUrl"
-          :src="'http://localhost:5276' + song.coverUrl"
+          :src="API_BASE + song.coverUrl"
           class="w-16 h-16 rounded shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="song.title"
-          @error="($event.target as HTMLImageElement).src = 'http://localhost:5276/uploads/covers/default.jpg'"
+          @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
         <div v-else class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>

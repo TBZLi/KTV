@@ -24,6 +24,8 @@ public class AuthService
         if (user == null || user.Status == "disabled") return null;
         if (user.PasswordHash != password) return null;
 
+        await _userRepo.UpdateLastActiveAtAsync(user.Id);
+
         var token = GenerateJwtToken(user);
         return (token, user);
     }

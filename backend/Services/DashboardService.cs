@@ -6,55 +6,38 @@ namespace backend.Services;
 public class DashboardService
 {
     private readonly IRoomRepository _roomRepo;
-    private readonly IOrderRepository _orderRepo;
     private readonly IUserRepository _userRepo;
     private readonly ISongRepository _songRepo;
 
     public DashboardService(
         IRoomRepository roomRepo,
-        IOrderRepository orderRepo,
         IUserRepository userRepo,
         ISongRepository songRepo)
     {
         _roomRepo = roomRepo;
-        _orderRepo = orderRepo;
         _userRepo = userRepo;
         _songRepo = songRepo;
     }
 
-    public async Task<DashboardStats> GetStatsAsync(DateTime? from = null, DateTime? to = null)
+    public async Task<object> GetStatsAsync()
     {
-        var totalRooms = await _roomRepo.GetCountAsync();
-        var todayOrders = await _orderRepo.GetTodayCountAsync();
-        var activeUsers = await _userRepo.GetActiveCountAsync();
-
-        decimal totalRevenue;
-        if (from.HasValue && to.HasValue)
+        return new
         {
-            totalRevenue = await _orderRepo.GetRevenueByDateRangeAsync(from.Value, to.Value);
-        }
-        else
-        {
-            totalRevenue = await _orderRepo.GetTotalRevenueAsync();
-        }
-
-        return new DashboardStats
-        {
-            TotalRooms = totalRooms,
-            TodayOrders = todayOrders,
-            TotalRevenue = totalRevenue,
-            ActiveUsers = activeUsers
+            activeRooms = await _roomRepo.GetActiveCountAsync(),
+            onlineUsers = await _roomRepo.GetTotalUserCountAsync(),
+            todayRooms = await _roomRepo.GetTodayCreatedCountAsync(),
+            totalUsers = await _roomRepo.GetTotalCountAsync()
         };
-    }
-
-    public async Task<List<Order>> GetLatestOrdersAsync()
-    {
-        return await _orderRepo.GetLatestAsync(10);
     }
 
     public async Task<List<Song>> GetTopSongsAsync()
     {
-        var result = await _songRepo.GetListAsync(null, null, "active", 1, 10);
+        var result = await _songRepo.GetListAsync(null, null, "active", 1, 5);
         return result.Items;
+    }
+
+    public async Task<List<Room>> GetLatestRoomsAsync()
+    {
+        return await _roomRepo.GetLatestRoomsAsync(5);
     }
 }

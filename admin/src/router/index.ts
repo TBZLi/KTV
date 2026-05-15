@@ -16,7 +16,7 @@ const router = createRouter({
       path: '/rooms',
       name: 'Rooms',
       component: () => import('@/views/RoomManagementView.vue'),
-      meta: { title: '房间管理', icon: 'meeting_room', requiresAuth: true },
+      meta: { title: '房间监控', icon: 'meeting_room', requiresAuth: true },
     },
     {
       path: '/songs',
@@ -31,10 +31,10 @@ const router = createRouter({
       meta: { title: '歌曲详情', requiresAuth: true },
     },
     {
-      path: '/orders',
-      name: 'Orders',
-      component: () => import('@/views/OrderManagementView.vue'),
-      meta: { title: '订单管理', icon: 'receipt_long', requiresAuth: true },
+      path: '/feedbacks',
+      name: 'Feedbacks',
+      component: () => import('@/views/FeedbackManagementView.vue'),
+      meta: { title: '反馈管理', icon: 'feedback', requiresAuth: true },
     },
     {
       path: '/accounts',

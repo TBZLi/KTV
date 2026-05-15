@@ -5,9 +5,9 @@ const route = useRoute()
 
 const navItems = [
   { path: '/dashboard', icon: 'dashboard', label: '仪表盘' },
-  { path: '/rooms', icon: 'meeting_room', label: '房间管理' },
+  { path: '/rooms', icon: 'meeting_room', label: '房间监控' },
   { path: '/songs', icon: 'library_music', label: '歌曲管理' },
-  { path: '/orders', icon: 'receipt_long', label: '订单管理' },
+  { path: '/feedbacks', icon: 'feedback', label: '反馈管理' },
   { path: '/accounts', icon: 'manage_accounts', label: '账户管理' },
   { path: '/settings', icon: 'settings', label: '系统设置' },
 ]

@@ -1,7 +1,7 @@
 import type { User, Song, PlayQueueItem, Favorite, RoomInfo, NowPlaying } from '@/types'
 
 export const mockUser: User = {
-  id: 1, username: 'user_001', displayName: '张三', balance: 500, isVip: false, status: 'active', createdAt: '2023-10-25 10:00',
+  id: 1, username: 'user_001', displayName: '张三', status: 'active', createdAt: '2023-10-25 10:00',
 }
 
 export const mockSongs: Song[] = [
@@ -47,9 +47,9 @@ export const mockFavorites: Favorite[] = [
 
 export const mockRoomInfo: RoomInfo = {
   roomId: 1,
-  roomNumber: '888',
-  roomType: 'VIP',
+  roomCode: 'ABC123',
   songsQueued: 12,
+  onlineUsers: 3,
 }
 
 export const mockNowPlaying: NowPlaying = {

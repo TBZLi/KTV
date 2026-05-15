@@ -14,17 +14,10 @@ public class DashboardController : ControllerBase
     public DashboardController(DashboardService dashboardService) => _dashboardService = dashboardService;
 
     [HttpGet("stats")]
-    public async Task<IActionResult> GetStats([FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    public async Task<IActionResult> GetStats()
     {
-        var stats = await _dashboardService.GetStatsAsync(from, to);
+        var stats = await _dashboardService.GetStatsAsync();
         return Ok(stats);
-    }
-
-    [HttpGet("latest-orders")]
-    public async Task<IActionResult> GetLatestOrders()
-    {
-        var orders = await _dashboardService.GetLatestOrdersAsync();
-        return Ok(orders);
     }
 
     [HttpGet("top-songs")]
@@ -32,5 +25,12 @@ public class DashboardController : ControllerBase
     {
         var songs = await _dashboardService.GetTopSongsAsync();
         return Ok(songs);
+    }
+
+    [HttpGet("latest-rooms")]
+    public async Task<IActionResult> GetLatestRooms()
+    {
+        var rooms = await _dashboardService.GetLatestRoomsAsync();
+        return Ok(rooms);
     }
 }

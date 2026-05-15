@@ -6,14 +6,12 @@ namespace backend.Services;
 public class AccountService
 {
     private readonly IUserRepository _userRepo;
-    private readonly IOrderRepository _orderRepo;
     private readonly IRoomRepository _roomRepo;
     private readonly IWebHostEnvironment _env;
 
-    public AccountService(IUserRepository userRepo, IOrderRepository orderRepo, IRoomRepository roomRepo, IWebHostEnvironment env)
+    public AccountService(IUserRepository userRepo, IRoomRepository roomRepo, IWebHostEnvironment env)
     {
         _userRepo = userRepo;
-        _orderRepo = orderRepo;
         _roomRepo = roomRepo;
         _env = env;
     }
@@ -36,7 +34,7 @@ public class AccountService
         var user = new User
         {
             Username = username,
-            PasswordHash = password, // TODO: hash password
+            PasswordHash = password,
             DisplayName = displayName,
             Phone = phone,
             AvatarUrl = "/uploads/avatars/default.jpg",
@@ -47,7 +45,7 @@ public class AccountService
         return await _userRepo.CreateAsync(user);
     }
 
-    public async Task UpdateAsync(int id, string? displayName, string? phone, string? avatarUrl, bool? isVip)
+    public async Task UpdateAsync(int id, string? displayName, string? phone, string? avatarUrl)
     {
         var user = await _userRepo.GetByIdAsync(id);
         if (user == null) throw new Exception("User not found");
@@ -56,12 +54,10 @@ public class AccountService
         if (phone != null) user.Phone = phone;
         if (avatarUrl != null)
         {
-            // Delete old avatar file if it's not the default
             if (user.AvatarUrl != null && !user.AvatarUrl.Contains("default.jpg"))
                 DeletePhysicalFile(user.AvatarUrl);
             user.AvatarUrl = avatarUrl;
         }
-        if (isVip.HasValue) user.IsVip = isVip.Value;
 
         await _userRepo.UpdateAsync(user);
     }
@@ -78,13 +74,6 @@ public class AccountService
         catch { /* best-effort */ }
     }
 
-    public async Task RechargeAsync(int id, decimal amount)
-    {
-        var user = await _userRepo.GetByIdAsync(id);
-        if (user == null) throw new Exception("User not found");
-        await _userRepo.RechargeAsync(id, amount);
-    }
-
     public async Task ToggleStatusAsync(int id)
     {
         var user = await _userRepo.GetByIdAsync(id);
@@ -95,33 +84,12 @@ public class AccountService
         await _userRepo.UpdateAsync(user);
     }
 
-    public async Task<object> GetDisablePreviewAsync(int id)
+    public async Task DisableWithRoomKickAsync(int id)
     {
         var user = await _userRepo.GetByIdAsync(id);
         if (user == null) throw new Exception("用户不存在");
         if (user.Role == "admin") throw new Exception("管理员账号不可禁用");
         if (user.Status == "disabled") throw new Exception("用户已被禁用");
-
-        var inProgressCount = await _orderRepo.GetInProgressCountByUserAsync(id);
-        return new { inProgressCount };
-    }
-
-    public async Task DisableWithAutoCancelAsync(int id)
-    {
-        var user = await _userRepo.GetByIdAsync(id);
-        if (user == null) throw new Exception("用户不存在");
-        if (user.Role == "admin") throw new Exception("管理员账号不可禁用");
-        if (user.Status == "disabled") throw new Exception("用户已被禁用");
-
-        // Cancel all in-progress orders and refund
-        var inProgressOrders = await _orderRepo.GetInProgressByUserAsync(id);
-        foreach (var order in inProgressOrders)
-        {
-            await _userRepo.RechargeAsync(order.UserId, order.Amount);
-            await _orderRepo.CancelAsync(order.Id);
-            await _roomRepo.UpdateCurrentOrderIdAsync(order.RoomId, null);
-            await _roomRepo.UpdateStatusAsync(order.RoomId, "idle");
-        }
 
         // Disable user
         user.Status = "disabled";

@@ -17,7 +17,7 @@ public class RoomsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetList([FromQuery] string? search, [FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var result = await _roomService.GetListAsync(search, status, page, pageSize);
+        var result = await _roomService.GetActiveRoomsAsync(search, status, page, pageSize);
         return Ok(result);
     }
 
@@ -29,17 +29,36 @@ public class RoomsController : ControllerBase
         return Ok(room);
     }
 
-    [HttpPut("{id}/status")]
-    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateRoomStatusRequest request)
+    [HttpPost("{id}/close")]
+    public async Task<IActionResult> CloseRoom(int id)
     {
-        await _roomService.UpdateStatusAsync(id, request.Status);
-        return Ok();
+        try
+        {
+            await _roomService.CloseRoomAsync(id);
+            return Ok(new { message = "房间已关闭" });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
-    [HttpPost("{id}/end-session")]
-    public async Task<IActionResult> EndSession(int id)
+    [HttpPost("join")]
+    public async Task<IActionResult> JoinRoom([FromBody] JoinRoomRequest request)
     {
-        await _roomService.EndSessionAsync(id);
+        var room = await _roomService.GetByCodeAsync(request.RoomCode);
+        if (room == null) return NotFound(new { message = "房间不存在或已关闭" });
+
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        await _roomService.JoinRoomAsync(room.Id, userId);
+        return Ok(new { roomId = room.Id, roomCode = room.RoomCode });
+    }
+
+    [HttpPost("{id}/leave")]
+    public async Task<IActionResult> LeaveRoom(int id)
+    {
+        var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+        await _roomService.LeaveRoomAsync(id, userId);
         return Ok();
     }
 }

@@ -4,6 +4,8 @@ import type { Song, PlayQueueItem, Favorite, RoomInfo, PaginatedResult, User } f
 export const authApi = {
   login: (username: string, password: string) =>
     apiClient.post<{ token: string; user: User }>('/api/auth/login', { username, password }),
+  register: (data: { username?: string; phone?: string; email?: string; password: string; displayName: string }) =>
+    apiClient.post('/api/auth/register', data),
   logout: () => apiClient.post('/api/auth/logout'),
 }
 
@@ -25,15 +27,33 @@ export const favoritesApi = {
 }
 
 export const roomApi = {
-  getCurrent: () => apiClient.get<RoomInfo>('/api/room/current'),
+  getCurrent: (roomId?: number) => apiClient.get<RoomInfo>('/api/room/current', { params: roomId ? { roomId } : undefined }),
   getQueue: () => apiClient.get<PlayQueueItem[]>('/api/room/queue'),
   reorder: (queueId: number, newOrder: number) =>
     apiClient.post('/api/room/queue/reorder', { queueId, newOrder }),
   removeFromQueue: (queueId: number) =>
     apiClient.delete(`/api/room/queue/${queueId}`),
+  joinByCode: (roomCode: string) =>
+    apiClient.post('/api/rooms/join', { roomCode }),
+  leaveRoom: (roomId: number) =>
+    apiClient.post(`/api/rooms/${roomId}/leave`),
+  orderSong: (songId: number, roomId: number) =>
+    apiClient.post('/api/room/queue', { songId, roomId }),
 }
 
-export const ordersApi = {
-  orderSong: (songId: number, roomId: number) =>
-    apiClient.post('/api/orders/song', { songId, roomId }),
+export const roomRequestsApi = {
+  create: () => apiClient.post('/api/roomrequests'),
 }
+
+export const feedbacksApi = {
+  create: (data: { feedbackType: string; songName?: string; artist?: string; description?: string }) =>
+    apiClient.post('/api/feedbacks', data),
+}
+
+export const chatApi = {
+  sendMessage: (roomId: number, message: string) =>
+    apiClient.post('/api/chat/send', { roomId, message }),
+  getMessages: (roomId: number) =>
+    apiClient.get<{ id: number; nickname: string; message: string; timestamp: string }[]>('/api/chat/messages', { params: { roomId } }),
+}
+

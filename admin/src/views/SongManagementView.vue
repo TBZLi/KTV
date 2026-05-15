@@ -226,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { songsApi, uploadApi } from '@/api'
 import type { Song, SongStats } from '@/types'
@@ -473,8 +473,18 @@ async function handleDelete(song: Song) {
   await fetchStats()
 }
 
+let pollTimer: ReturnType<typeof setInterval> | null = null
+
 onMounted(() => {
   fetchStats()
   fetchSongs()
+  pollTimer = setInterval(() => {
+    fetchStats()
+    fetchSongs()
+  }, 3000)
+})
+
+onUnmounted(() => {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 })
 </script>

@@ -58,50 +58,17 @@ public class UserRepository : IUserRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, AvatarUrl, Role, Status)
+            @"INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Email, AvatarUrl, Role, Status, CreatedAt, UpdatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @AvatarUrl, @Role, @Status)", user);
+              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @Email, @AvatarUrl, @Role, @Status, GETUTCDATE(), GETUTCDATE())", user);
     }
 
     public async Task UpdateAsync(User user)
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            @"UPDATE Users SET DisplayName=@DisplayName, Phone=@Phone, AvatarUrl=@AvatarUrl, IsVip=@IsVip,
-              Status=@Status, Balance=@Balance, UpdatedAt=GETUTCDATE() WHERE Id=@Id", user);
-    }
-
-    public async Task<decimal> GetBalanceAsync(int userId)
-    {
-        using var conn = CreateConnection();
-        return await conn.ExecuteScalarAsync<decimal>(
-            "SELECT Balance FROM Users WHERE Id = @Id", new { Id = userId });
-    }
-
-    public async Task RechargeAsync(int userId, decimal amount, IDbTransaction? tran = null)
-    {
-        const string sql = "UPDATE Users SET Balance = Balance + @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id";
-        if (tran != null)
-            await tran!.Connection!.ExecuteAsync(sql, new { Id = userId, Amount = amount }, tran);
-        else
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync(sql, new { Id = userId, Amount = amount });
-        }
-    }
-
-    public async Task<bool> TryDeductBalanceAsync(int userId, decimal amount, IDbTransaction? tran = null)
-    {
-        const string sql = "UPDATE Users SET Balance = Balance - @Amount, UpdatedAt = GETUTCDATE() WHERE Id = @Id AND Balance >= @Amount AND Status = 'active'";
-        int rows;
-        if (tran != null)
-            rows = await tran!.Connection!.ExecuteAsync(sql, new { Id = userId, Amount = amount }, tran);
-        else
-        {
-            using var conn = CreateConnection();
-            rows = await conn.ExecuteAsync(sql, new { Id = userId, Amount = amount });
-        }
-        return rows > 0;
+            @"UPDATE Users SET DisplayName=@DisplayName, Phone=@Phone, Email=@Email, AvatarUrl=@AvatarUrl,
+              Status=@Status, UpdatedAt=GETUTCDATE() WHERE Id=@Id", user);
     }
 
     public async Task<int> GetActiveCountAsync()
@@ -132,5 +99,14 @@ public class UserRepository : IUserRepository
         await conn.ExecuteAsync(
             "UPDATE Users SET PasswordHash = @Password, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
             new { Id = id, Password = password });
+    }
+
+    public async Task UpdateLastActiveAtAsync(int id, bool clear = false)
+    {
+        using var conn = CreateConnection();
+        if (clear)
+            await conn.ExecuteAsync("UPDATE Users SET LastActiveAt = NULL WHERE Id = @Id", new { Id = id });
+        else
+            await conn.ExecuteAsync("UPDATE Users SET LastActiveAt = GETUTCDATE() WHERE Id = @Id", new { Id = id });
     }
 }

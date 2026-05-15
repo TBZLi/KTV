@@ -42,8 +42,8 @@ export function setupMockAdapter() {
   mock.onPost('/api/room/queue/reorder').reply(200)
   mock.onDelete(/\/api\/room\/queue\/\d+/).reply(200)
 
-  // Orders
-  mock.onPost('/api/orders/song').reply(200, { success: true })
+  // Queue
+  mock.onPost('/api/room/queue').reply(200, { id: 99 })
 
   return mock
 }

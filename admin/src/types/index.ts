@@ -2,19 +2,53 @@ export interface User {
   id: number
   username: string
   displayName: string
+  phone?: string
+  email?: string
   avatarUrl?: string
-  balance: number
-  isVip: boolean
   status: 'active' | 'disabled'
+  isOnline: boolean
+  roomCode?: string
   createdAt: string
 }
 
 export interface Room {
   id: number
-  roomNumber: string
-  roomType: 'VIP' | 'Medium' | 'Small'
-  status: 'in_use' | 'idle' | 'cleaning'
-  currentOrderId: string | null
+  roomCode: string
+  status: 'active' | 'idle_closing' | 'closed'
+  createdByUserId: number
+  currentUsers: number
+  idleCloseAt?: string
+  createdAt: string
+  closedAt?: string
+}
+
+export interface RoomRequest {
+  id: number
+  userId: number
+  status: 'pending' | 'approved' | 'rejected'
+  roomId?: number
+  createdAt: string
+  processedAt?: string
+  processedBy?: number
+  // Joined fields
+  username?: string
+  displayName?: string
+  roomCode?: string
+}
+
+export interface Feedback {
+  id: number
+  userId: number
+  feedbackType: 'request_song' | 'report_error' | 'other'
+  songName?: string
+  artist?: string
+  description?: string
+  status: 'pending' | 'processed'
+  createdAt: string
+  processedAt?: string
+  // Joined fields
+  username?: string
+  displayName?: string
 }
 
 export interface Song {
@@ -53,23 +87,11 @@ export interface SongDetail {
   commentCount: number
 }
 
-export interface Order {
-  id: string
-  roomId: number
-  roomNumber: string
-  roomType: 'VIP' | 'Medium' | 'Small'
-  userId: number
-  username: string
-  amount: number
-  status: 'in_progress' | 'completed' | 'cancelled' | 'refunded'
-  createdAt: string
-}
-
 export interface DashboardStats {
-  totalRooms: number
-  todayOrders: number
-  totalRevenue: number
-  activeUsers: number
+  activeRooms: number
+  onlineUsers: number
+  todayRooms: number
+  totalUsers: number
 }
 
 export interface SongStats {
@@ -86,30 +108,14 @@ export interface PaginatedResult<T> {
 }
 
 export interface SystemSettings {
-  storeName: string
-  storePhone: string
-  storeAddress: string
-  businessHours: string
-  holidayPricingEnabled: boolean
-  baseHourlyRate: number
+  platformName: string
+  contactInfo: string
   logRetentionDays: number
   sensitiveOpVerification: boolean
-  verifyDeleteOrder: boolean
-  verifyBalanceAdjust: boolean
   verifyDisableUser: boolean
-  verifyBatchSongStatus: boolean
+  verifyCloseRoom: boolean
   verifyModifySettings: boolean
   verifyModifyAdmin: boolean
-}
-
-export interface Holiday {
-  id: number
-  startDate: string
-  endDate: string
-  vipMultiplier: number
-  mediumMultiplier: number
-  smallMultiplier: number
-  createdAt: string
 }
 
 export interface OperationLog {

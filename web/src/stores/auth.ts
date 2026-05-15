@@ -8,6 +8,7 @@ export const useAuthStore = defineStore('auth', () => {
     JSON.parse(localStorage.getItem('user') || 'null')
   )
   const isLoggedIn = ref(!!token.value)
+  const currentRoomId = ref<number>(Number(localStorage.getItem('currentRoomId') || '0'))
 
   function setAuth(newToken: string, newUser: User) {
     token.value = newToken
@@ -17,13 +18,40 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('user', JSON.stringify(newUser))
   }
 
+  function setCurrentRoomId(roomId: number) {
+    currentRoomId.value = roomId
+    localStorage.setItem('currentRoomId', String(roomId))
+  }
+
   function logout() {
     token.value = null
     user.value = null
     isLoggedIn.value = false
+    currentRoomId.value = 0
     localStorage.removeItem('token')
     localStorage.removeItem('user')
+    localStorage.removeItem('currentRoomId')
   }
 
-  return { token, user, isLoggedIn, setAuth, logout }
+  // Sync with localStorage changes (for 401 interceptor, other tabs, VSCode)
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'token' && !e.newValue) {
+      token.value = null
+      user.value = null
+      isLoggedIn.value = false
+      currentRoomId.value = 0
+    }
+  })
+
+  // Also check periodically (for same-tab changes by interceptor)
+  setInterval(() => {
+    const stored = localStorage.getItem('token')
+    if (!stored && isLoggedIn.value) {
+      token.value = null
+      user.value = null
+      isLoggedIn.value = false
+    }
+  }, 1000)
+
+  return { token, user, isLoggedIn, currentRoomId, setAuth, setCurrentRoomId, logout }
 })

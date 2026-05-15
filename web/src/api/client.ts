@@ -39,6 +39,7 @@ apiClient.interceptors.response.use(
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
+    // Non-401 errors (500, 400, etc.) are passed through without redirect
     return Promise.reject(error)
   }
 )

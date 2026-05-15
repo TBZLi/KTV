@@ -2,10 +2,10 @@ namespace backend.Models;
 
 public class DashboardStats
 {
-    public int TotalRooms { get; set; }
-    public int TodayOrders { get; set; }
-    public decimal TotalRevenue { get; set; }
-    public int ActiveUsers { get; set; }
+    public int ActiveRooms { get; set; }
+    public int OnlineUsers { get; set; }
+    public int TodayRooms { get; set; }
+    public int TotalUsers { get; set; }
 }
 
 public class SongStats
@@ -25,12 +25,8 @@ public class PaginatedResult<T>
 
 public class SystemSettingsDto
 {
-    public string StoreName { get; set; } = string.Empty;
-    public string StorePhone { get; set; } = string.Empty;
-    public string StoreAddress { get; set; } = string.Empty;
-    public string BusinessHours { get; set; } = string.Empty;
-    public bool HolidayPricingEnabled { get; set; }
-    public decimal BaseHourlyRate { get; set; }
+    public string PlatformName { get; set; } = string.Empty;
+    public string ContactInfo { get; set; } = string.Empty;
     public int LogRetentionDays { get; set; }
     public bool SensitiveOpVerification { get; set; }
 }

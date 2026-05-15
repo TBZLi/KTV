@@ -1,6 +1,6 @@
 import MockAdapter from 'axios-mock-adapter'
 import { apiClient } from '../api/client'
-import { mockUsers, mockRooms, mockSongs, mockOrders, mockDashboardStats, mockSongStats, mockSettings, mockGenres, mockHolidays, mockOperationLogs } from './data'
+import { mockUsers, mockRooms, mockRoomRequests, mockFeedbacks, mockSongs, mockDashboardStats, mockSongStats, mockSettings, mockGenres, mockOperationLogs } from './data'
 
 export function setupMockAdapter() {
   const mock = new MockAdapter(apiClient, { delayResponse: 300 })
@@ -16,7 +16,6 @@ export function setupMockAdapter() {
 
   // Dashboard
   mock.onGet('/api/dashboard/stats').reply(200, mockDashboardStats)
-  mock.onGet('/api/dashboard/latest-orders').reply(200, mockOrders.slice(0, 5))
   mock.onGet('/api/dashboard/top-songs').reply(200, mockSongs.slice(0, 5))
 
   // Rooms
@@ -27,15 +26,53 @@ export function setupMockAdapter() {
       rooms = rooms.filter(r => r.status === params.status)
     }
     if (params.search) {
-      rooms = rooms.filter(r => r.roomNumber.toLowerCase().includes(params.search.toLowerCase()))
+      rooms = rooms.filter(r => r.roomCode.toLowerCase().includes(params.search.toLowerCase()))
     }
     const page = params.page || 1
     const pageSize = params.pageSize || 10
     const start = (page - 1) * pageSize
     return [200, { items: rooms.slice(start, start + pageSize), total: rooms.length, page, pageSize }]
   })
-  mock.onPut(/\/api\/rooms\/\d+\/status/).reply(200)
-  mock.onPost(/\/api\/rooms\/\d+\/end-session/).reply(200)
+  mock.onPost(/\/api\/rooms\/\d+\/close/).reply(200)
+
+  // Room Requests
+  mock.onGet('/api/roomrequests').reply((config) => {
+    let requests = [...mockRoomRequests]
+    const params = config.params || {}
+    if (params.status && params.status !== 'all') {
+      requests = requests.filter(r => r.status === params.status)
+    }
+    const page = params.page || 1
+    const pageSize = params.pageSize || 10
+    const start = (page - 1) * pageSize
+    return [200, { items: requests.slice(start, start + pageSize), total: requests.length, page, pageSize }]
+  })
+  mock.onPost(/\/api\/roomrequests\/\d+\/approve/).reply(200)
+  mock.onPost(/\/api\/roomrequests\/\d+\/reject/).reply(200)
+  mock.onGet('/api/roomrequests/pending-count').reply(200, { count: 2 })
+
+  // Feedbacks
+  mock.onGet('/api/feedbacks').reply((config) => {
+    let feedbacks = [...mockFeedbacks]
+    const params = config.params || {}
+    if (params.status && params.status !== 'all') {
+      feedbacks = feedbacks.filter(f => f.status === params.status)
+    }
+    if (params.search) {
+      const q = params.search.toLowerCase()
+      feedbacks = feedbacks.filter(f =>
+        (f.songName || '').toLowerCase().includes(q) ||
+        (f.artist || '').toLowerCase().includes(q) ||
+        (f.displayName || '').toLowerCase().includes(q)
+      )
+    }
+    const page = params.page || 1
+    const pageSize = params.pageSize || 10
+    const start = (page - 1) * pageSize
+    return [200, { items: feedbacks.slice(start, start + pageSize), total: feedbacks.length, page, pageSize }]
+  })
+  mock.onPost(/\/api\/feedbacks\/\d+\/process/).reply(200)
+  mock.onGet('/api/feedbacks/pending-count').reply(200, { count: 2 })
 
   // Songs
   mock.onGet('/api/songs/stats').reply(200, mockSongStats)
@@ -59,37 +96,13 @@ export function setupMockAdapter() {
   mock.onPut(/\/api\/songs\/\d+/).reply(200)
   mock.onDelete(/\/api\/songs\/\d+/).reply(200)
 
-  // Orders
-  mock.onGet('/api/orders').reply((config) => {
-    let orders = [...mockOrders]
-    const params = config.params || {}
-    if (params.status && params.status !== 'all') {
-      orders = orders.filter(o => o.status === params.status)
-    }
-    if (params.searchKeyword && params.searchField) {
-      const q = params.searchKeyword.toLowerCase()
-      if (params.searchField === 'orderId') orders = orders.filter(o => o.id.toLowerCase().includes(q))
-      if (params.searchField === 'username') orders = orders.filter(o => (o.username || '').toLowerCase().includes(q))
-      if (params.searchField === 'roomNumber') orders = orders.filter(o => (o.roomNumber || '').toLowerCase().includes(q))
-    }
-    const page = params.page || 1
-    const pageSize = params.pageSize || 10
-    const start = (page - 1) * pageSize
-    return [200, { items: orders.slice(start, start + pageSize), total: orders.length, page, pageSize }]
-  })
-  mock.onPost(/\/api\/orders\/.*\/refund/).reply(200)
-  mock.onPost(/\/api\/orders\/.*\/complete/).reply(200)
-  mock.onPost(/\/api\/orders\/.*\/cancel/).reply(200)
-  mock.onPost(/\/api\/orders\/.*\/restore/).reply(200)
-  mock.onDelete(/\/api\/orders\/.*/).reply(200)
-
   // Accounts
   mock.onGet('/api/accounts').reply((config) => {
     let users = [...mockUsers]
     const params = config.params || {}
     if (params.search) {
       const q = params.search.toLowerCase()
-      users = users.filter(u => u.username.toLowerCase().includes(q))
+      users = users.filter(u => u.username.toLowerCase().includes(q) || u.displayName.toLowerCase().includes(q))
     }
     if (params.status && params.status !== 'all') {
       users = users.filter(u => u.status === params.status)
@@ -101,12 +114,10 @@ export function setupMockAdapter() {
   })
   mock.onPost('/api/accounts').reply(200)
   mock.onPut(/\/api\/accounts\/\d+/).reply(200)
-  mock.onPost(/\/api\/accounts\/\d+\/recharge/).reply(200)
   mock.onPut(/\/api\/accounts\/\d+\/toggle-status/).reply(200)
-  mock.onGet(/\/api\/accounts\/\d+\/disable-preview/).reply(200, { inProgressCount: 0 })
   mock.onPost(/\/api\/accounts\/\d+\/disable/).reply(200)
 
-  // Settings (mutable store matching real backend's snake_case dictionary format)
+  // Settings
   const settingsStore: Record<string, string> = { ...mockSettings }
   mock.onGet('/api/settings').reply(200, { ...settingsStore })
   mock.onPut('/api/settings').reply((config) => {
@@ -117,11 +128,6 @@ export function setupMockAdapter() {
   mock.onGet('/api/settings/admin-account').reply(200, { username: 'admin' })
   mock.onPost('/api/settings/admin-account/username').reply(200)
   mock.onPost('/api/settings/admin-account/password').reply(200)
-
-  // Holidays
-  mock.onGet('/api/holidays').reply(200, mockHolidays)
-  mock.onPost('/api/holidays').reply(200)
-  mock.onDelete(/\/api\/holidays\/\d+/).reply(200)
 
   // Operation Logs
   mock.onGet('/api/operationlogs').reply((config) => {

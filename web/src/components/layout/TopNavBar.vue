@@ -1,4 +1,22 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+import { roomApi, authApi } from '@/api'
+
+const router = useRouter()
+const auth = useAuthStore()
+const showMenu = ref(false)
+
+async function handleLogout() {
+  showMenu.value = false
+  if (auth.currentRoomId > 0) {
+    try { await roomApi.leaveRoom(auth.currentRoomId) } catch { /* ignore */ }
+  }
+  try { await authApi.logout() } catch { /* ignore */ }
+  auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -15,7 +33,33 @@
         <span class="material-symbols-outlined text-primary">notifications</span>
         <span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
       </button>
-      <div class="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center text-[10px] text-slate-500 font-bold border-2 border-white shadow-sm">用户头像</div>
+      <!-- Avatar dropdown -->
+      <div class="relative">
+        <button
+          @click="showMenu = !showMenu"
+          class="w-10 h-10 bg-primary-container text-on-primary-container rounded-full flex items-center justify-center text-sm font-bold border-2 border-white shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+        >
+          {{ auth.user?.displayName?.charAt(0)?.toUpperCase() || '?' }}
+        </button>
+        <!-- Dropdown -->
+        <div
+          v-if="showMenu"
+          class="absolute right-0 mt-2 w-40 bg-surface-container-lowest rounded-xl shadow-xl ring-1 ring-outline-variant/15 py-2 z-50"
+        >
+          <div class="px-4 py-2 text-xs text-on-surface-variant border-b border-outline-variant/10">
+            {{ auth.user?.displayName }}
+          </div>
+          <button
+            @click="handleLogout"
+            class="w-full text-left px-4 py-2.5 text-sm text-error hover:bg-error/5 flex items-center gap-2 transition-colors"
+          >
+            <span class="material-symbols-outlined text-lg">logout</span>
+            退出登录
+          </button>
+        </div>
+      </div>
     </div>
   </header>
+  <!-- Click outside to close -->
+  <div v-if="showMenu" class="fixed inset-0 z-40" @click="showMenu = false"></div>
 </template>
