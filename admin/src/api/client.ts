@@ -21,10 +21,10 @@ apiClient.interceptors.request.use((config) => {
     if (isTokenExpired(token)) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/dashboard'
-      return Promise.reject(new Error('登录已过期，请重新登录'))
+      // 不跳转，让请求自然 401，由 response interceptor 处理重试登录
+    } else {
+      config.headers.Authorization = `Bearer ${token}`
     }
-    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
