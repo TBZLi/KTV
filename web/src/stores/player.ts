@@ -127,7 +127,13 @@ export const usePlayerStore = defineStore('player', () => {
    * Load a full queue (from server). Auto-play the first track if nothing is playing.
    */
   function loadQueue(tracks: PlayerTrack[]) {
+    // Skip update if queue hasn't changed (prevents re-render flash on poll)
+    if (tracks.length === queue.value.length && tracks.every((t, i) => t.songId === queue.value[i].songId && t.coverUrl === queue.value[i].coverUrl && t.mediaUrl === queue.value[i].mediaUrl)) {
+      return
+    }
+
     const wasPlaying = isPlaying.value
+    const prevIndex = currentIndex.value
     const currentSongId = currentTrack.value?.songId
 
     queue.value = tracks
@@ -148,7 +154,10 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
 
-    // If nothing was playing, load first track but don't auto-play
+    // Queue ended (playNext set currentIndex to -1) — stay stopped, don't restart from track 0
+    if (prevIndex === -1 && !wasPlaying) return
+
+    // If nothing was playing yet, load first track but don't auto-play
     if (!wasPlaying) {
       _loadTrack(0)
       audio.pause()

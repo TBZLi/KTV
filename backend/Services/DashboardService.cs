@@ -24,7 +24,7 @@ public class DashboardService
         return new
         {
             activeRooms = await _roomRepo.GetActiveCountAsync(),
-            onlineUsers = await _roomRepo.GetTotalUserCountAsync(),
+            onlineUsers = await _userRepo.GetOnlineCountAsync(),
             todayRooms = await _roomRepo.GetTodayCreatedCountAsync(),
             totalUsers = await _roomRepo.GetTotalCountAsync()
         };

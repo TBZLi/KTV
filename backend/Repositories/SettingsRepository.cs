@@ -34,7 +34,7 @@ public class SettingsRepository : ISettingsRepository
         if (exists > 0)
         {
             var rows = await conn.ExecuteAsync(
-                "UPDATE SystemSettings SET SettingValue = @Value, UpdatedAt = GETUTCDATE() WHERE SettingKey = @Key",
+                "UPDATE SystemSettings SET SettingValue = @Value, UpdatedAt = GETDATE() WHERE SettingKey = @Key",
                 new { Key = key, Value = value });
             _logger.LogInformation("Settings UPDATE: key={Key}, rowsAffected={Rows}", key, rows);
         }

@@ -29,7 +29,7 @@ public class ChatRepository : IChatRepository
         return await conn.ExecuteScalarAsync<int>(
             @"INSERT INTO ChatMessages (RoomId, UserId, Nickname, Content, CreatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@RoomId, @UserId, @Nickname, @Content, GETUTCDATE())",
+              VALUES (@RoomId, @UserId, @Nickname, @Content, GETDATE())",
             new { RoomId = roomId, UserId = userId, Nickname = nickname, Content = filtered });
     }
 

@@ -73,15 +73,11 @@ function onVolumeClick(e: MouseEvent) {
     <!-- Left: track info -->
     <div class="flex items-center gap-4 w-1/4">
       <img
-        v-if="player.currentTrack?.coverUrl"
-        :src="API_BASE + player.currentTrack.coverUrl"
-        class="w-12 h-12 rounded-lg flex-shrink-0 object-cover"
-        :alt="player.currentTrack?.title"
+        :src="player.currentTrack?.coverUrl ? API_BASE + player.currentTrack.coverUrl : API_BASE + '/uploads/covers/default.jpg'"
+        class="w-12 h-12 rounded flex-shrink-0 object-cover"
+        :alt="player.currentTrack?.title ?? '默认封面'"
         @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
       />
-      <div v-else class="w-12 h-12 bg-slate-200 rounded-lg flex items-center justify-center text-[8px] text-slate-500 text-center px-1">
-        <span class="material-symbols-outlined text-slate-400">music_note</span>
-      </div>
       <div class="overflow-hidden">
         <p v-if="player.hasTrack" class="font-label text-xs font-bold uppercase tracking-widest text-primary">Playing</p>
         <p v-else class="font-label text-xs font-bold uppercase tracking-widest text-slate-400">Stopped</p>

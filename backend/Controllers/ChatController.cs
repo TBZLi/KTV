@@ -21,7 +21,9 @@ public class ChatController : ControllerBase
         int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
 
     private string GetNickname() =>
-        User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value ?? "匿名";
+        User.FindFirst("DisplayName")?.Value
+        ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+        ?? "匿名";
 
     [HttpPost("send")]
     public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request)

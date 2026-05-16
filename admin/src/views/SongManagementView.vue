@@ -81,15 +81,11 @@
             >
               <td class="p-4">
                 <img
-                  v-if="song.coverUrl"
-                  :src="BACKEND_BASE + song.coverUrl"
+                  :src="song.coverUrl ? BACKEND_BASE + song.coverUrl : BACKEND_BASE + DEFAULT_COVER"
                   class="w-12 h-12 rounded object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
                   :alt="song.title"
                   @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_COVER"
                 />
-                <div v-else class="w-12 h-12 bg-slate-200 rounded flex items-center justify-center text-slate-400">
-                  <span class="material-symbols-outlined text-lg">image</span>
-                </div>
               </td>
               <td class="p-4 font-medium">{{ song.title }}</td>
               <td class="p-4 text-on-surface-variant">{{ song.artist }}</td>
@@ -222,7 +218,15 @@
         </form>
       </div>
     </div>
+
   </div>
+
+  <!-- Toast -->
+  <Transition name="toast">
+    <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+      {{ toastMsg }}
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -231,10 +235,14 @@ import { useRouter } from 'vue-router'
 import { songsApi, uploadApi } from '@/api'
 import type { Song, SongStats } from '@/types'
 import { formatPlayCount, formatDuration, formatFileSize } from '@/utils/format'
+import { useToast } from '@/composables/useToast'
 import jsmediatags from 'jsmediatags'
 
 const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 const DEFAULT_COVER = '/uploads/covers/default.jpg'
+
+// Toast
+const { toastMsg, showToast } = useToast()
 
 const router = useRouter()
 const songs = ref<Song[]>([])
@@ -272,6 +280,7 @@ const form = ref({
   fileSize: 0 as number | null,
   coverUrl: null as string | null,
   mediaUrl: null as string | null,
+  originalFileName: null as string | null,
 })
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
@@ -326,12 +335,11 @@ function goToDetail(id: number) {
 }
 
 function openAddDialog() {
-  form.value = { title: '', artist: '', genre: '流行', language: '中文', duration: 0, fileSize: null, coverUrl: null, mediaUrl: null }
+  form.value = { title: '', artist: '', genre: '流行', language: '中文', duration: 0, fileSize: null, coverUrl: null, mediaUrl: null, originalFileName: null }
   coverFile.value = null
   coverPreview.value = null
   coverUploadError.value = ''
   musicFile.value = null
-  musicUploadError.value = ''
   showDialog.value = true
 }
 
@@ -378,6 +386,7 @@ async function onMusicSelected(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (!file) return
   musicFile.value = file
+  form.value.mediaUrl = null
   musicUploadError.value = ''
 
   // Read duration from MP3 file
@@ -430,6 +439,7 @@ async function handleSave() {
         const res = await uploadApi.music(musicFile.value)
         form.value.mediaUrl = res.data.url
         form.value.fileSize = musicFile.value.size
+        form.value.originalFileName = res.data.originalName
       } catch (err: any) {
         musicUploadError.value = err.response?.data?.message || '音乐文件上传失败'
         return
@@ -440,6 +450,11 @@ async function handleSave() {
 
     if (!form.value.mediaUrl) {
       musicUploadError.value = '请上传音乐文件'
+      return
+    }
+
+    if (form.value.mediaUrl.includes('wwwroot') || /^[A-Z]:\\/i.test(form.value.mediaUrl)) {
+      musicUploadError.value = '非法路径，请重新选择音乐文件'
       return
     }
 
@@ -468,9 +483,13 @@ async function handleSave() {
 
 async function handleDelete(song: Song) {
   if (!confirm(`确定删除歌曲「${song.title}」吗？`)) return
-  await songsApi.delete(song.id)
-  await fetchSongs()
-  await fetchStats()
+  try {
+    await songsApi.delete(song.id)
+    await fetchSongs()
+    await fetchStats()
+  } catch (err: any) {
+    showToast(err.response?.data?.message || '删除失败')
+  }
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
@@ -488,3 +507,15 @@ onUnmounted(() => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>

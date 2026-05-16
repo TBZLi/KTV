@@ -56,7 +56,7 @@ public class RoomRequestRepository : IRoomRequestRepository
         return await conn.ExecuteScalarAsync<int>(
             @"INSERT INTO RoomRequests (UserId, Status, CreatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@UserId, @Status, GETUTCDATE())",
+              VALUES (@UserId, @Status, GETDATE())",
             new { request.UserId, request.Status });
     }
 
@@ -65,7 +65,7 @@ public class RoomRequestRepository : IRoomRequestRepository
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             @"UPDATE RoomRequests
-              SET Status = @Status, RoomId = @RoomId, ProcessedAt = GETUTCDATE(), ProcessedBy = @ProcessedBy
+              SET Status = @Status, RoomId = @RoomId, ProcessedAt = GETDATE(), ProcessedBy = @ProcessedBy
               WHERE Id = @Id",
             new { Id = id, Status = status, RoomId = roomId, ProcessedBy = processedBy });
     }

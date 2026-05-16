@@ -29,7 +29,7 @@ public class AccountService
     public async Task<int> CreateAsync(string username, string password, string displayName, string? phone)
     {
         var existing = await _userRepo.GetByUsernameAsync(username);
-        if (existing != null) throw new Exception("Username already exists");
+        if (existing != null) throw new Exception("用户名已存在");
 
         var user = new User
         {

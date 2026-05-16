@@ -60,7 +60,7 @@ public class UserRepository : IUserRepository
         return await conn.ExecuteScalarAsync<int>(
             @"INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Email, AvatarUrl, Role, Status, CreatedAt, UpdatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @Email, @AvatarUrl, @Role, @Status, GETUTCDATE(), GETUTCDATE())", user);
+              VALUES (@Username, @PasswordHash, @DisplayName, @Phone, @Email, @AvatarUrl, @Role, @Status, GETDATE(), GETDATE())", user);
     }
 
     public async Task UpdateAsync(User user)
@@ -68,7 +68,7 @@ public class UserRepository : IUserRepository
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             @"UPDATE Users SET DisplayName=@DisplayName, Phone=@Phone, Email=@Email, AvatarUrl=@AvatarUrl,
-              Status=@Status, UpdatedAt=GETUTCDATE() WHERE Id=@Id", user);
+              Status=@Status, UpdatedAt=GETDATE() WHERE Id=@Id", user);
     }
 
     public async Task<int> GetActiveCountAsync()
@@ -89,7 +89,7 @@ public class UserRepository : IUserRepository
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Users SET Username = @Username, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
+            "UPDATE Users SET Username = @Username, UpdatedAt = GETDATE() WHERE Id = @Id",
             new { Id = id, Username = username });
     }
 
@@ -97,7 +97,7 @@ public class UserRepository : IUserRepository
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Users SET PasswordHash = @Password, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
+            "UPDATE Users SET PasswordHash = @Password, UpdatedAt = GETDATE() WHERE Id = @Id",
             new { Id = id, Password = password });
     }
 
@@ -107,6 +107,17 @@ public class UserRepository : IUserRepository
         if (clear)
             await conn.ExecuteAsync("UPDATE Users SET LastActiveAt = NULL WHERE Id = @Id", new { Id = id });
         else
-            await conn.ExecuteAsync("UPDATE Users SET LastActiveAt = GETUTCDATE() WHERE Id = @Id", new { Id = id });
+            await conn.ExecuteAsync("UPDATE Users SET LastActiveAt = GETDATE() WHERE Id = @Id", new { Id = id });
+    }
+
+    public async Task<int> GetOnlineCountAsync()
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            @"SELECT COUNT(*) FROM Users
+              WHERE LastActiveAt IS NOT NULL
+                AND LastActiveAt > DATEADD(MINUTE, -10, GETDATE())
+                AND Role != 'admin'
+                AND Status = 'active'");
     }
 }

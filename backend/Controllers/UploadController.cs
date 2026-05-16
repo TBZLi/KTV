@@ -82,6 +82,6 @@ public class UploadController : ControllerBase
 
         // Return the relative URL for frontend to use
         var url = $"/uploads/{subfolder}/{fileName}";
-        return Ok(new { url, fileName });
+        return Ok(new { url, fileName, originalName = file.FileName });
     }
 }

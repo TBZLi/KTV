@@ -5,10 +5,16 @@ import { roomApi, chatApi } from '@/api'
 import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
 import type { RoomInfo, PlayQueueItem } from '@/types'
+import { useToast } from '@/composables/useToast'
+
+// Toast
+const { toastMsg, showToast } = useToast()
 
 const player = usePlayerStore()
 const auth = useAuthStore()
 const router = useRouter()
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const roomInfo = ref<RoomInfo | null>(null)
 const queue = ref<PlayQueueItem[]>([])
@@ -47,9 +53,10 @@ const progressPercent = computed(() => {
 
 async function loadRoom() {
   try {
-    console.log('loadRoom: currentRoomId =', auth.currentRoomId)
     const { data } = await roomApi.getCurrent(auth.currentRoomId)
-    console.log('loadRoom: result =', data)
+    // Only update if data actually changed (prevents re-render flash on poll)
+    const prev = roomInfo.value
+    if (prev && prev.roomId === data.roomId && prev.roomCode === data.roomCode && prev.songsQueued === data.songsQueued && prev.onlineUsers === data.onlineUsers) return
     roomInfo.value = data
   } catch (err: any) {
     console.error('loadRoom: error =', err.response?.status, err.response?.data)
@@ -59,6 +66,14 @@ async function loadRoom() {
 
 async function loadQueue() {
   const { data } = await roomApi.getQueue()
+
+  // Only update if queue actually changed (prevents re-render flash on poll)
+  if (data.length === queue.value.length && data.every((d, i) => d.id === queue.value[i].id && d.songId === queue.value[i].songId)) {
+    // Queue unchanged, still sync player store in case it was cleared
+    player.loadQueue(data.map(item => ({ songId: item.songId, title: item.songTitle, artist: item.artist, coverUrl: item.coverUrl, mediaUrl: item.mediaUrl })))
+    return
+  }
+
   queue.value = data
 
   player.loadQueue(
@@ -97,7 +112,7 @@ function playSong(songId: number) {
 async function sendChatMessage() {
   if (!chatInput.value.trim()) return
   if (!roomInfo.value || roomInfo.value.roomId <= 0) {
-    alert('未加入房间，无法发送消息')
+    showToast('未加入房间，无法发送消息')
     return
   }
   const msg = chatInput.value.trim()
@@ -107,7 +122,7 @@ async function sendChatMessage() {
     await loadChatMessages()
   } catch (err: any) {
     console.error('发送消息失败:', err)
-    alert('发送失败: ' + (err.message || '未知错误'))
+    showToast('发送失败: ' + (err.message || '未知错误'))
   }
 }
 
@@ -115,7 +130,10 @@ async function loadChatMessages() {
   if (!roomInfo.value || roomInfo.value.roomId <= 0) return
   try {
     const { data } = await chatApi.getMessages(roomInfo.value.roomId)
-    chatMessages.value = data.map(m => ({ nickname: m.nickname, message: m.message, timestamp: m.timestamp }))
+    const mapped = data.map(m => ({ nickname: m.nickname, message: m.message, timestamp: m.timestamp }))
+    // Only update if messages actually changed
+    if (mapped.length === chatMessages.value.length && mapped.every((m, i) => m.message === chatMessages.value[i].message && m.timestamp === chatMessages.value[i].timestamp)) return
+    chatMessages.value = mapped
     scrollToChatBottom()
   } catch { /* ignore */ }
 }
@@ -163,6 +181,18 @@ onUnmounted(() => {
   }
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>
 
 <template>
   <!-- Not in a room -->
@@ -222,15 +252,11 @@ onUnmounted(() => {
       <!-- Now Playing hero card -->
       <div v-if="player.currentTrack" class="bg-surface-container-lowest rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
         <img
-          v-if="player.currentTrack.coverUrl"
           :src="API_BASE + player.currentTrack.coverUrl"
-          class="w-48 h-48 rounded-lg flex-shrink-0 object-cover cursor-pointer"
+          class="w-48 h-48 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="player.currentTrack.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-48 h-48 bg-slate-200 rounded-lg flex-shrink-0 flex items-center justify-center text-slate-400 text-center font-bold px-4">
-          <span class="material-symbols-outlined text-6xl text-slate-400">music_note</span>
-        </div>
         <div class="flex-grow">
           <div class="flex justify-between items-start mb-6">
             <div>
@@ -287,20 +313,19 @@ onUnmounted(() => {
             <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
           </span>
           <img
-            v-if="item.coverUrl"
             :src="API_BASE + item.coverUrl"
-            class="w-12 h-12 rounded-lg mx-6 flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+            class="w-12 h-12 rounded flex-shrink-0 object-cover mx-6 cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
             :alt="item.songTitle"
             @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
           />
-          <div class="flex-grow grid grid-cols-4 items-center">
+          <div class="flex-grow grid grid-cols-3 items-center">
             <span class="font-bold" :class="{ 'text-primary': player.currentTrack?.songId === item.songId }">{{ item.songTitle }}</span>
             <span class="text-on-surface-variant">{{ item.artist }}</span>
-            <span class="text-sm text-slate-400">点播者: {{ item.orderedBy }}</span>
-            <div class="flex justify-end gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-slate-400">点播者: {{ item.orderedBy }}</span>
               <button
                 @click.stop="removeFromQueue(item.id)"
-                class="text-error hover:scale-110 transition-transform"
+                class="text-error hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 <span class="material-symbols-outlined">delete</span>
               </button>
@@ -361,5 +386,12 @@ onUnmounted(() => {
         </form>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>

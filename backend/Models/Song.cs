@@ -11,6 +11,7 @@ public class Song
     public long? FileSize { get; set; }
     public string? CoverUrl { get; set; }
     public string? MediaUrl { get; set; }
+    public string? OriginalFileName { get; set; }
     public int PlayCount { get; set; }
     public string Status { get; set; } = "active";
     public DateTime CreatedAt { get; set; }

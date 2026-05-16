@@ -47,6 +47,7 @@ public class AuthService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
+            new Claim("DisplayName", user.DisplayName),
             new Claim(ClaimTypes.Role, user.Role),
         };
 

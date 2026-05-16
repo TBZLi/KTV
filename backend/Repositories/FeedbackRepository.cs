@@ -52,7 +52,7 @@ public class FeedbackRepository : IFeedbackRepository
         return await conn.ExecuteScalarAsync<int>(
             @"INSERT INTO Feedbacks (UserId, FeedbackType, SongName, Artist, Description, Status, CreatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@UserId, @FeedbackType, @SongName, @Artist, @Description, 'pending', GETUTCDATE())",
+              VALUES (@UserId, @FeedbackType, @SongName, @Artist, @Description, 'pending', GETDATE())",
             feedback);
     }
 
@@ -60,7 +60,7 @@ public class FeedbackRepository : IFeedbackRepository
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Feedbacks SET Status = 'processed', ProcessedAt = GETUTCDATE() WHERE Id = @Id",
+            "UPDATE Feedbacks SET Status = 'processed', ProcessedAt = GETDATE() WHERE Id = @Id",
             new { Id = id });
     }
 

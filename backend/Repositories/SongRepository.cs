@@ -58,9 +58,9 @@ public class SongRepository : ISongRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, PlayCount, Status)
+            @"INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, OriginalFileName, PlayCount, Status)
               OUTPUT INSERTED.Id
-              VALUES (@Title, @Artist, @Genre, @Language, @Duration, @FileSize, @CoverUrl, @MediaUrl, 0, 'active')", song);
+              VALUES (@Title, @Artist, @Genre, @Language, @Duration, @FileSize, @CoverUrl, @MediaUrl, @OriginalFileName, 0, 'active')", song);
     }
 
     public async Task UpdateAsync(Song song)
@@ -68,7 +68,7 @@ public class SongRepository : ISongRepository
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             @"UPDATE Songs SET Title=@Title, Artist=@Artist, Genre=@Genre, Language=@Language, Duration=@Duration,
-              FileSize=@FileSize, CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, Status=@Status, UpdatedAt=GETUTCDATE()
+              FileSize=@FileSize, CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, OriginalFileName=@OriginalFileName, Status=@Status, UpdatedAt=GETDATE()
               WHERE Id=@Id", song);
     }
 
@@ -92,9 +92,9 @@ public class SongRepository : ISongRepository
     public async Task DeleteAsync(int id)
     {
         using var conn = CreateConnection();
-        await conn.ExecuteAsync(
-            "UPDATE Songs SET Status = 'disabled', UpdatedAt = GETUTCDATE() WHERE Id = @Id",
-            new { Id = id });
+        await conn.ExecuteAsync("DELETE FROM Favorites WHERE SongId = @Id", new { Id = id });
+        await conn.ExecuteAsync("DELETE FROM PlayQueue WHERE SongId = @Id", new { Id = id });
+        await conn.ExecuteAsync("DELETE FROM Songs WHERE Id = @Id", new { Id = id });
     }
 
     public async Task<List<string>> GetGenresAsync()
@@ -110,7 +110,7 @@ public class SongRepository : ISongRepository
         using var conn = CreateConnection();
         var total = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Songs");
         var weeklyNew = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM Songs WHERE CreatedAt >= DATEADD(day, -7, GETUTCDATE())");
+            "SELECT COUNT(*) FROM Songs WHERE CreatedAt >= DATEADD(day, -7, GETDATE())");
         var todayPlays = await conn.ExecuteScalarAsync<int>(
             "SELECT ISNULL(SUM(PlayCount), 0) FROM Songs WHERE Status = 'active'");
 
@@ -121,7 +121,7 @@ public class SongRepository : ISongRepository
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Songs SET PlayCount = PlayCount + 1, UpdatedAt = GETUTCDATE() WHERE Id = @Id",
+            "UPDATE Songs SET PlayCount = PlayCount + 1, UpdatedAt = GETDATE() WHERE Id = @Id",
             new { Id = songId });
     }
 }

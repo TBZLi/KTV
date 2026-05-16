@@ -33,7 +33,7 @@ public class AccountsController : ControllerBase
               INNER JOIN Rooms r ON r.Id = ru.RoomId AND r.Status != 'closed'"
         )).ToDictionary(x => (int)x.UserId, x => (string)x.RoomCode);
 
-        var cutoff = DateTime.UtcNow.AddMinutes(-10);
+        var cutoff = DateTime.Now.AddMinutes(-10);
         foreach (var user in result.Items)
         {
             user.IsOnline = user.LastActiveAt.HasValue && user.LastActiveAt.Value > cutoff;

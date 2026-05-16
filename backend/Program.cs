@@ -133,7 +133,7 @@ var app = builder.Build();
                 CreatedByUserId INT NOT NULL,
                 CurrentUsers INT NOT NULL DEFAULT 0,
                 IdleCloseAt DATETIME2 NULL,
-                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
                 ClosedAt DATETIME2 NULL
             )");
         Console.WriteLine("[AutoMigrate] Rooms table rebuilt with new schema");
@@ -148,7 +148,7 @@ var app = builder.Build();
                 CreatedByUserId INT NOT NULL,
                 CurrentUsers INT NOT NULL DEFAULT 0,
                 IdleCloseAt DATETIME2 NULL,
-                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
                 ClosedAt DATETIME2 NULL
             )");
         Console.WriteLine("[AutoMigrate] Rooms table created");
@@ -163,7 +163,7 @@ var app = builder.Build();
                 UserId INT NOT NULL,
                 Status NVARCHAR(20) NOT NULL DEFAULT 'pending',
                 RoomId INT NULL,
-                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
                 ProcessedAt DATETIME2 NULL,
                 ProcessedBy INT NULL
             )");
@@ -182,7 +182,7 @@ var app = builder.Build();
                 Artist NVARCHAR(200) NULL,
                 Description NVARCHAR(1000) NULL,
                 Status NVARCHAR(20) NOT NULL DEFAULT 'pending',
-                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
                 ProcessedAt DATETIME2 NULL
             )");
         Console.WriteLine("[AutoMigrate] Feedbacks table created");
@@ -199,7 +199,7 @@ var app = builder.Build();
                 OrderedByUserId INT NOT NULL,
                 SortOrder INT NOT NULL DEFAULT 0,
                 Status NVARCHAR(20) NOT NULL DEFAULT 'queued',
-                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETDATE()
             )");
         Console.WriteLine("[AutoMigrate] PlayQueue table created");
     }
@@ -212,7 +212,7 @@ var app = builder.Build();
                 Id INT IDENTITY(1,1) PRIMARY KEY,
                 RoomId INT NOT NULL,
                 UserId INT NOT NULL,
-                JoinedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                JoinedAt DATETIME2 NOT NULL DEFAULT GETDATE(),
                 CONSTRAINT UQ_RoomUsers UNIQUE (UserId)
             )");
         Console.WriteLine("[AutoMigrate] RoomUsers table created");
@@ -223,6 +223,13 @@ var app = builder.Build();
     {
         conn.Execute("ALTER TABLE Users ADD LastActiveAt DATETIME2 NULL");
         Console.WriteLine("[AutoMigrate] Users.LastActiveAt column added");
+    }
+
+    // 8. Songs table: add OriginalFileName column
+    if (!ColumnExists("Songs", "OriginalFileName"))
+    {
+        conn.Execute("ALTER TABLE Songs ADD OriginalFileName NVARCHAR(500) NULL");
+        Console.WriteLine("[AutoMigrate] Songs.OriginalFileName column added");
     }
 }
 

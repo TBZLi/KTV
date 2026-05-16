@@ -63,7 +63,7 @@ public class RoomRepository : IRoomRepository
         return await conn.ExecuteScalarAsync<int>(
             @"INSERT INTO Rooms (RoomCode, Status, CreatedByUserId, CurrentUsers, CreatedAt)
               OUTPUT INSERTED.Id
-              VALUES (@RoomCode, 'active', @CreatedByUserId, 0, GETUTCDATE())",
+              VALUES (@RoomCode, 'active', @CreatedByUserId, 0, GETDATE())",
             new { RoomCode = roomCode, CreatedByUserId = createdByUserId });
     }
 
@@ -72,7 +72,7 @@ public class RoomRepository : IRoomRepository
         using var conn = CreateConnection();
         if (status == "closed")
             await conn.ExecuteAsync(
-                "UPDATE Rooms SET Status = @Status, ClosedAt = GETUTCDATE() WHERE Id = @Id",
+                "UPDATE Rooms SET Status = @Status, ClosedAt = GETDATE() WHERE Id = @Id",
                 new { Id = id, Status = status });
         else
             await conn.ExecuteAsync(
@@ -100,7 +100,7 @@ public class RoomRepository : IRoomRepository
     {
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
-            "UPDATE Rooms SET Status = 'active', IdleCloseAt = NULL WHERE Id = @Id",
+            "UPDATE Rooms SET Status = 'active', IdleCloseAt = NULL WHERE Id = @Id AND Status != 'closed'",
             new { Id = id });
     }
 
@@ -122,7 +122,7 @@ public class RoomRepository : IRoomRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM Rooms WHERE CAST(CreatedAt AS DATE) = CAST(GETUTCDATE() AS DATE)");
+            "SELECT COUNT(*) FROM Rooms WHERE CAST(CreatedAt AS DATE) = CAST(GETDATE() AS DATE)");
     }
 
     public async Task<int> GetTotalCountAsync()

@@ -47,7 +47,7 @@ public class RoomService
         await _roomUserRepo.RemoveAllFromRoomAsync(roomId);
         using var conn = new SqlConnection(_connStr);
         await conn.ExecuteAsync(
-            "UPDATE Rooms SET Status = 'closed', ClosedAt = GETUTCDATE(), CurrentUsers = 0 WHERE Id = @Id",
+            "UPDATE Rooms SET Status = 'closed', ClosedAt = GETDATE(), CurrentUsers = 0 WHERE Id = @Id",
             new { Id = roomId });
     }
 
@@ -65,12 +65,15 @@ public class RoomService
 
     public async Task LeaveRoomAsync(int roomId, int userId)
     {
+        var room = await _roomRepo.GetByIdAsync(roomId);
+        if (room == null || room.Status == "closed") return;
+
         await _roomUserRepo.RemoveUserAsync(roomId, userId);
         var count = await _roomUserRepo.GetRoomUserCountAsync(roomId);
         await SetUserCountAsync(roomId, count);
         if (count <= 0)
         {
-            await _roomRepo.SetIdleCloseTimerAsync(roomId, DateTime.UtcNow.AddMinutes(5));
+            await _roomRepo.SetIdleCloseTimerAsync(roomId, DateTime.Now.AddSeconds(30));
         }
     }
 

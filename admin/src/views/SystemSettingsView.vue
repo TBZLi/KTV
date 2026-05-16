@@ -177,7 +177,7 @@
                   <td colspan="5" class="py-8 text-center text-outline">暂无操作记录</td>
                 </tr>
                 <tr v-for="log in logs" :key="log.id" class="border-b border-surface-variant/50 hover:bg-surface-container-lowest/50 transition-colors">
-                  <td class="py-3 px-2 whitespace-nowrap text-on-surface-variant">{{ log.createdAt }}</td>
+                  <td class="py-3 px-2 whitespace-nowrap text-on-surface-variant">{{ formatDate(log.createdAt) }}</td>
                   <td class="py-3 px-2 font-medium text-on-surface">{{ log.username }}</td>
                   <td class="py-3 px-2">
                     <span class="px-2 py-1 rounded-full text-xs font-medium" :class="getLogTypeClass(log.operationType)">
@@ -283,6 +283,13 @@
         </form>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -290,6 +297,10 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { settingsApi, operationLogsApi, authApi } from '@/api'
 import type { SystemSettings, OperationLog } from '@/types'
+import { useToast } from '@/composables/useToast'
+
+// Toast
+const { toastMsg, showToast } = useToast()
 
 const settings = ref<SystemSettings>({
   platformName: '',
@@ -397,6 +408,11 @@ function getLogTypeClass(type: string) {
   return 'bg-surface-container-high text-on-surface-variant'
 }
 
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
 // --- Save & Init ---
 async function handleSave() {
   const doSave = async () => {
@@ -411,9 +427,9 @@ async function handleSave() {
     }
     try {
       await settingsApi.update(payload)
-      alert('设置已保存')
+      showToast('设置已保存')
     } catch (err: any) {
-      alert(err?.response?.data?.message || '保存失败，请重试')
+      showToast(err?.response?.data?.message || '保存失败，请重试')
     }
   }
   // Verify if modify_settings is enabled
@@ -431,7 +447,7 @@ async function handleChangeUsername() {
     try {
       await settingsApi.updateAdminUsername(adminForm.value)
       showUsernameDialog.value = false
-      alert('用户名已修改')
+      showToast('用户名已修改')
       await fetchAdminAccount()
     } catch (err: any) {
       adminFormError.value = err.response?.data?.message || err.response?.data || '修改失败'
@@ -458,7 +474,7 @@ async function handleChangePassword() {
     try {
       await settingsApi.updateAdminPassword(passwordForm.value)
       showPasswordDialog.value = false
-      alert('密码已修改')
+      showToast('密码已修改')
     } catch (err: any) {
       adminFormError.value = err.response?.data?.message || err.response?.data || '修改失败'
     } finally {
@@ -517,3 +533,15 @@ onUnmounted(() => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>

@@ -77,7 +77,7 @@ public class OperationLogRepository : IOperationLogRepository
         if (retentionDays <= 0) return 0;
         using var conn = CreateConnection();
         return await conn.ExecuteAsync(
-            "DELETE FROM OperationLogs WHERE CreatedAt < DATEADD(DAY, -@Days, GETUTCDATE())",
+            "DELETE FROM OperationLogs WHERE CreatedAt < DATEADD(DAY, -@Days, GETDATE())",
             new { Days = retentionDays });
     }
 }

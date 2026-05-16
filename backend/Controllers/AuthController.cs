@@ -57,8 +57,8 @@ public class AuthController : ControllerBase
             Email = request.Email,
             Role = "user",
             Status = "active",
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.Now,
+            UpdatedAt = DateTime.Now
         };
 
         var id = await _userRepo.CreateAsync(user);

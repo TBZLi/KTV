@@ -219,6 +219,13 @@
         </div>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -226,6 +233,10 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { roomsApi, roomRequestsApi } from '@/api'
 import type { Room, RoomRequest } from '@/types'
+import { useToast } from '@/composables/useToast'
+
+// Toast
+const { toastMsg, showToast } = useToast()
 
 // Tab state
 const activeTab = ref<'rooms' | 'requests'>('rooms')
@@ -246,6 +257,25 @@ const pendingCount = ref(0)
 const showUsersDialog = ref(false)
 const roomUsers = ref<{ id: number; username: string; displayName: string; avatarUrl: string }[]>([])
 
+// Countdown state
+const countdowns = ref<Record<number, number>>({})
+let tickTimer: ReturnType<typeof setInterval> | null = null
+
+function updateCountdowns() {
+  const now = Date.now()
+  const next: Record<number, number> = {}
+  for (const room of rooms.value) {
+    if (room.idleCloseAt) {
+      const remaining = Math.max(0, Math.ceil((new Date(room.idleCloseAt).getTime() - now) / 1000))
+      next[room.id] = remaining
+      if (remaining <= 0 && countdowns.value[room.id] > 0) {
+        roomsApi.closeRoom(room.id).then(() => fetchRooms()).catch(() => {})
+      }
+    }
+  }
+  countdowns.value = next
+}
+
 async function viewRoomUsers(roomId: number) {
   try {
     const { data } = await roomsApi.getRoomUsers(roomId)
@@ -256,7 +286,7 @@ async function viewRoomUsers(roomId: number) {
     const msg = err.code === 'ECONNABORTED'
       ? '请求超时，请检查后端服务是否正常'
       : err.response?.data?.message || err.message || '获取房间用户失败'
-    alert(msg)
+    showToast(msg)
   }
 }
 
@@ -264,7 +294,6 @@ const statusTabs = [
   { label: '全部', value: '' },
   { label: '进行中', value: 'active' },
   { label: '空闲待关闭', value: 'idle_closing' },
-  { label: '已关闭', value: 'closed' },
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(roomTotal.value / pageSize.value)))
@@ -277,7 +306,11 @@ function roomStatusClass(room: Room) {
 
 function formatRoomStatus(room: Room) {
   if (room.currentUsers > 0) return '进行中'
-  if (room.idleCloseAt) return '空闲待关闭'
+  if (room.idleCloseAt) {
+    const remaining = countdowns.value[room.id]
+    if (remaining !== undefined && remaining > 0) return `自动关闭 ${remaining}s`
+    return '关闭中...'
+  }
   return '空闲'
 }
 
@@ -304,6 +337,7 @@ async function fetchRooms() {
   })
   rooms.value = res.data.items
   roomTotal.value = res.data.total
+  updateCountdowns()
 }
 
 async function fetchRequests() {
@@ -326,13 +360,13 @@ async function closeRoom(id: number) {
     await roomsApi.closeRoom(id)
     await fetchRooms()
   } catch (err: any) {
-    alert(err.response?.data?.message || '关闭房间失败')
+    showToast(err.response?.data?.message || '关闭房间失败')
   }
 }
 
 async function approveRequest(id: number) {
   const { data } = await roomRequestsApi.approve(id)
-  alert(`已通过，房间码: ${data.roomCode}`)
+  showToast(`已通过，房间码: ${data.roomCode}`)
   await fetchRequests()
   await fetchPendingCount()
 }
@@ -355,10 +389,12 @@ onMounted(() => {
     fetchRequests()
     fetchPendingCount()
   }, 3000)
+  tickTimer = setInterval(updateCountdowns, 1000)
 })
 
 onUnmounted(() => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null }
 })
 
 watch([activeStatus, searchQuery], () => {
@@ -370,3 +406,15 @@ watch(currentPage, () => {
   fetchRooms()
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>

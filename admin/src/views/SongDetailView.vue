@@ -22,11 +22,8 @@
     <template v-else>
       <!-- Header: Cover + Title -->
       <div class="flex gap-8 items-start">
-        <div class="w-48 h-48 rounded-2xl overflow-hidden bg-surface-container-high flex-shrink-0 shadow-md relative group">
-          <img v-if="currentCoverUrl" :src="currentCoverUrl" class="w-full h-full object-cover" @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_COVER" />
-          <div v-else class="w-full h-full flex items-center justify-center">
-            <span class="material-symbols-outlined text-5xl text-outline-variant">music_note</span>
-          </div>
+        <div class="w-48 h-48 rounded overflow-hidden bg-surface-container-high flex-shrink-0 shadow-md relative group">
+          <img :src="currentCoverUrl" class="w-full h-full object-cover" @error="($event.target as HTMLImageElement).src = BACKEND_BASE + DEFAULT_COVER" />
           <!-- Cover replace button (edit mode) -->
           <label v-if="editing" class="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity">
             <span class="material-symbols-outlined text-white text-3xl">edit</span>
@@ -137,7 +134,7 @@
           <label class="block text-sm font-medium text-on-surface-variant mb-2">音乐文件</label>
           <div v-if="!editing" class="flex items-center gap-3 text-on-surface">
             <span class="material-symbols-outlined text-primary">audio_file</span>
-            <span class="text-sm truncate">{{ detail.mediaUrl ? detail.mediaUrl.split('/').pop() : '未上传' }}</span>
+            <span class="text-sm truncate">{{ detail.originalFileName || (detail.mediaUrl ? detail.mediaUrl.split('/').pop() : '未上传') }}</span>
           </div>
           <div v-else class="space-y-2">
             <div class="flex items-center gap-3 text-on-surface">
@@ -211,7 +208,7 @@ const newDuration = ref<number | null>(null)
 
 const currentCoverUrl = computed(() => {
   const url = newCoverUrl.value || detail.value?.coverUrl
-  if (!url) return ''
+  if (!url) return BACKEND_BASE + DEFAULT_COVER
   if (url.startsWith('blob:') || url.startsWith('http')) return url
   return BACKEND_BASE + url
 })
@@ -222,7 +219,7 @@ const currentMediaName = computed(() => {
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr)
-  return d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  return d.toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
 async function fetchDetail() {

@@ -36,6 +36,9 @@ public class RoomRequestService
         var roomId = await _roomRepo.CreateAsync(roomCode, request.UserId);
         await _requestRepo.UpdateStatusAsync(requestId, "approved", roomId, adminId);
 
+        // 房间创建时无人，立即开始30秒倒计时
+        await _roomRepo.SetIdleCloseTimerAsync(roomId, DateTime.Now.AddSeconds(30));
+
         return (await _roomRepo.GetByIdAsync(roomId))!;
     }
 

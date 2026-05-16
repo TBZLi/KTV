@@ -14,4 +14,5 @@ public interface IUserRepository
     Task UpdateUsernameAsync(int id, string username);
     Task UpdatePasswordAsync(int id, string password);
     Task UpdateLastActiveAtAsync(int id, bool clear = false);
+    Task<int> GetOnlineCountAsync();
 }

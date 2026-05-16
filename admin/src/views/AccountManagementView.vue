@@ -106,7 +106,7 @@
                 <span v-if="user.roomCode" class="font-mono font-semibold text-sm text-primary">{{ user.roomCode }}</span>
                 <span v-else class="text-on-surface-variant/50 text-sm">--</span>
               </td>
-              <td class="py-4 px-6 text-on-surface-variant">{{ user.createdAt }}</td>
+              <td class="py-4 px-6 text-on-surface-variant">{{ formatDate(user.createdAt) }}</td>
               <td class="py-4 px-6 text-right">
                 <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button @click="openEditDialog(user)" class="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors" title="编辑">
@@ -235,6 +235,13 @@
         </form>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -243,6 +250,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { accountsApi, uploadApi } from '@/api'
 import type { User } from '@/types'
 import { formatUserStatus } from '@/utils/format'
+import { useToast } from '@/composables/useToast'
 
 const BACKEND_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 const DEFAULT_AVATAR = '/uploads/avatars/default.jpg'
@@ -267,7 +275,15 @@ const editForm = ref({ displayName: '', phone: '' })
 const newAvatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
 
+// Toast
+const { toastMsg, showToast } = useToast()
+
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr)
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
 
 function onSearch() {
   clearTimeout(searchTimer)
@@ -303,7 +319,7 @@ async function handleToggleStatus(id: number) {
     }
     await fetchAccounts()
   } catch (err: any) {
-    alert(err.response?.data?.message || err.response?.data || '操作失败')
+    showToast(err.response?.data?.message || '操作失败')
   }
 }
 
@@ -318,6 +334,8 @@ async function handleAdd() {
     await accountsApi.create(addForm.value)
     showAddDialog.value = false
     await fetchAccounts()
+  } catch (err: any) {
+    showToast(err.response?.data?.message || '创建失败，用户名可能已存在')
   } finally {
     saving.value = false
   }
@@ -363,3 +381,15 @@ watch([currentPage, selectedStatus], () => {
   fetchAccounts()
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>

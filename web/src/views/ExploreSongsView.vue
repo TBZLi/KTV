@@ -4,6 +4,10 @@ import { songsApi, feedbacksApi, favoritesApi } from '@/api'
 import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
 import { formatDuration } from '@/utils/format'
+import { useToast } from '@/composables/useToast'
+
+// Toast
+const { toastMsg, showToast } = useToast()
 
 const { orderSong } = useSongOrder()
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
@@ -58,7 +62,7 @@ async function toggleFavorite(songId: number) {
     }
     favoritedSongIds.value = new Set(favoritedSongIds.value)
   } catch (err: any) {
-    alert(err.response?.data?.message || '操作失败')
+    showToast(err.response?.data?.message || '操作失败')
   }
 }
 
@@ -87,7 +91,7 @@ async function submitFeedback() {
     feedbackSuccess.value = true
     setTimeout(() => { showFeedbackDialog.value = false }, 1500)
   } catch (err: any) {
-    alert(err.response?.data?.message || '提交失败')
+    showToast(err.response?.data?.message || '提交失败')
   } finally {
     feedbackLoading.value = false
   }
@@ -99,6 +103,18 @@ onMounted(() => {
   loadFavorites()
 })
 </script>
+
+<style scoped>
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -20px);
+}
+</style>
 
 <template>
   <div class="max-w-6xl mx-auto px-8">
@@ -147,11 +163,11 @@ onMounted(() => {
         <img
           v-if="song.coverUrl"
           :src="API_BASE + song.coverUrl"
-          class="w-20 h-20 rounded-xl flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+          class="w-20 h-20 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-20 h-20 bg-slate-200 rounded-xl flex-shrink-0 shadow-inner flex items-center justify-center">
+        <div v-else class="w-20 h-20 bg-slate-200 rounded flex-shrink-0 shadow-inner flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>
         </div>
 
@@ -239,5 +255,12 @@ onMounted(() => {
         </template>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Transition name="toast">
+      <div v-if="toastMsg" class="fixed top-8 left-1/2 -translate-x-1/2 z-[100] bg-error text-on-error px-6 py-3 rounded-xl shadow-lg text-sm font-medium">
+        {{ toastMsg }}
+      </div>
+    </Transition>
   </div>
 </template>

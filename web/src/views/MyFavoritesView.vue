@@ -43,11 +43,11 @@ onMounted(() => {
         <img
           v-if="favorite.song.coverUrl"
           :src="API_BASE + favorite.song.coverUrl"
-          class="w-20 h-20 rounded-lg flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+          class="w-20 h-20 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
           :alt="favorite.song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-20 h-20 bg-slate-200 rounded-lg flex-shrink-0 shadow-sm overflow-hidden flex items-center justify-center">
+        <div v-else class="w-20 h-20 bg-slate-200 rounded flex-shrink-0 shadow-sm overflow-hidden flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400 text-lg opacity-50">image</span>
         </div>
 
