@@ -185,10 +185,10 @@ INSERT INTO SystemSettings (SettingKey, SettingValue) VALUES
     (N'log_retention_days', N'90'),
     (N'verify_close_room', N'true');
 
--- 管理员账号（密码: admin123）
--- 注意: 这是明文存储的演示哈希，实际项目应使用 BCrypt 等算法
+-- 管理员账号（密码: demo_hash_admin）
+-- 注意: 密码以明文存储，仅用于课程项目演示
 INSERT INTO Users (Username, PasswordHash, DisplayName, Role, Status, CreatedAt, UpdatedAt) VALUES
-    (N'admin', N'admin123', N'管理员', N'admin', N'active', GETDATE(), GETDATE());
+    (N'admin', N'demo_hash_admin', N'管理员', N'admin', N'active', GETDATE(), GETDATE());
 
 -- 示例用户（密码均为 123456）
 INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Role, Status, CreatedAt, UpdatedAt) VALUES
