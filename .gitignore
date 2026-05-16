@@ -29,16 +29,9 @@ desktop.ini
 .env.local
 .env.*.local
 
-# .NET sensitive config
-appsettings.Development.json
-
 # Logs
 *.log
 npm-debug.log*
-
-# Music/media files (large)
-音乐/
-backend/wwwroot/uploads/
 
 # Cache
 .cache/
