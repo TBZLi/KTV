@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     port: 5174,
     watch: {
-      usePolling: false,
+      ignored: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/backend/**', '**/admin/**', '**/*.sql', '**/*.md'],
     },
   },
 })
