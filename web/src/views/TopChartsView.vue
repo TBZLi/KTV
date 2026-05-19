@@ -66,7 +66,7 @@ onMounted(() => {
       <div
         v-for="(song, index) in charts"
         :key="song.id"
-        class="flex items-center gap-6 hover:glass hover:shadow-lg hover:scale-[1.02] p-4 -mx-4 rounded-lg transition-all duration-300 cursor-pointer"
+        class="flex items-center gap-6 hover:glass hover:shadow-lg hover:scale-[1.02] p-4 -mx-4 rounded-lg transition-all duration-300 cursor-pointer group"
       >
         <!-- Rank number -->
         <span
@@ -100,17 +100,19 @@ onMounted(() => {
         </div>
 
         <!-- Order button -->
-        <button
-          @click="orderSong(song)"
-          :class="[
-            'px-6 py-3 rounded-full font-bold font-label shrink-0 transition-colors',
-            index === 0
-              ? 'bg-primary text-on-primary shadow-sm hover:bg-secondary'
-              : 'bg-primary-fixed text-on-primary-fixed hover:bg-primary-fixed-dim',
-          ]"
-        >
-          点歌
-        </button>
+        <div class="opacity-0 group-hover:opacity-100 transition-opacity">
+          <button
+            @click="orderSong(song)"
+            :class="[
+              'px-6 py-3 rounded-full font-bold font-label shrink-0 transition-colors',
+              index === 0
+                ? 'bg-primary text-on-primary shadow-sm hover:bg-secondary'
+                : 'bg-primary-fixed text-on-primary-fixed hover:bg-primary-fixed-dim',
+            ]"
+          >
+            点歌
+          </button>
+        </div>
       </div>
     </div>
   </div>

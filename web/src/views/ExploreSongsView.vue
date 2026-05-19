@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { songsApi, feedbacksApi, favoritesApi } from '@/api'
 import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
-import { formatDuration } from '@/utils/format'
+import { formatDuration, formatPlayCount } from '@/utils/format'
 import { useToast } from '@/composables/useToast'
 
 // Toast
@@ -117,19 +117,19 @@ onMounted(() => {
 </style>
 
 <template>
-  <div class="max-w-6xl mx-auto px-8">
+  <div class="max-w-4xl mx-auto px-8">
     <!-- Page Title -->
     <div class="mb-10">
-      <h1 class="text-5xl font-extrabold font-headline tracking-tighter text-on-background mb-2">探索歌曲</h1>
-      <p class="text-on-surface-variant font-body">探索属于你的音乐世界，发现最新潮流单曲</p>
+      <h1 class="text-5xl font-extrabold text-on-surface font-display tracking-tight mb-2">探索歌曲</h1>
+      <p class="text-on-surface-variant">探索属于你的音乐世界，发现最新潮流单曲</p>
     </div>
 
     <!-- Genre filter pills -->
-    <div class="flex items-center gap-3 mb-12 overflow-x-auto pb-2">
+    <div class="flex items-center gap-3 mb-10 overflow-x-auto pb-2">
       <button
         @click="selectGenre('')"
         :class="[
-          'px-8 py-3 rounded-full font-bold font-body transition-all',
+          'px-6 py-2 rounded-full font-bold text-sm transition-all',
           selectedGenre === ''
             ? 'bg-primary text-on-primary'
             : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
@@ -142,7 +142,7 @@ onMounted(() => {
         :key="genre"
         @click="selectGenre(genre)"
         :class="[
-          'px-8 py-3 rounded-full font-bold font-body transition-all',
+          'px-6 py-2 rounded-full font-bold text-sm transition-all',
           selectedGenre === genre
             ? 'bg-primary text-on-primary'
             : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
@@ -153,53 +153,57 @@ onMounted(() => {
     </div>
 
     <!-- Song list -->
-    <div class="grid gap-6">
+    <div class="flex flex-col gap-4">
       <div
         v-for="song in songs"
         :key="song.id"
-        class="flex items-center gap-6 p-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 active:scale-[0.99] cursor-pointer"
+        class="flex items-center gap-6 p-4 -mx-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
       >
         <!-- Album cover -->
         <img
           v-if="song.coverUrl"
           :src="API_BASE + song.coverUrl"
-          class="w-20 h-20 rounded flex-shrink-0 object-cover"
+          class="w-16 h-16 rounded shrink-0 object-cover"
           :alt="song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-20 h-20 bg-slate-200 rounded flex-shrink-0 shadow-inner flex items-center justify-center">
+        <div v-else class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
           <span class="material-symbols-outlined text-slate-400">image</span>
         </div>
 
-        <!-- Song info grid -->
-        <div class="flex-1 grid grid-cols-12 items-center gap-4">
-          <div class="col-span-5">
-            <h3 class="text-xl font-bold font-headline text-on-surface">{{ song.title }}</h3>
-            <p class="text-on-surface-variant font-body text-sm mt-0.5">{{ song.artist }}</p>
-          </div>
-          <div class="col-span-2 text-on-surface-variant font-body font-medium">{{ formatDuration(song.duration) }}</div>
-          <div class="col-span-5 flex justify-end items-center gap-4">
-            <!-- Favorite toggle -->
-            <button
-              @click="toggleFavorite(song.id)"
-              class="w-12 h-12 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors"
+        <!-- Song info -->
+        <div class="flex-1 min-w-0">
+          <h3 class="text-xl font-bold text-on-surface truncate font-headline mb-1">{{ song.title }}</h3>
+          <p class="text-sm text-on-surface-variant truncate font-label">{{ song.artist }}</p>
+        </div>
+
+        <!-- Play count -->
+        <div class="text-right mr-4 hidden sm:block">
+          <span class="text-sm font-medium text-on-surface-variant font-label">{{ formatPlayCount(song.playCount) }} 次播放</span>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <!-- Favorite toggle -->
+          <button
+            @click="toggleFavorite(song.id)"
+            class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors"
+          >
+            <span
+              class="material-symbols-outlined"
+              :class="isFavorited(song.id) ? 'text-error' : 'text-outline'"
+              :style="isFavorited(song.id) ? 'font-variation-settings: FILL 1' : ''"
             >
-              <span
-                class="material-symbols-outlined"
-                :class="isFavorited(song.id) ? 'text-error' : 'text-outline'"
-                :style="isFavorited(song.id) ? 'font-variation-settings: FILL 1' : ''"
-              >
-                favorite
-              </span>
-            </button>
-            <!-- Order button -->
-            <button
-              @click="orderSong(song)"
-              class="px-8 py-3 bg-primary text-on-primary rounded-full font-bold font-body active:scale-90 transition-transform shadow-lg shadow-primary/10"
-            >
-              点歌
-            </button>
-          </div>
+              favorite
+            </span>
+          </button>
+          <!-- Order button -->
+          <button
+            @click="orderSong(song)"
+            class="px-6 py-3 bg-primary text-on-primary rounded-full font-bold font-body text-sm active:scale-90 transition-transform shadow-lg shadow-primary/10"
+          >
+            点歌
+          </button>
         </div>
       </div>
     </div>

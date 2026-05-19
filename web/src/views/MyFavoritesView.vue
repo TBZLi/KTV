@@ -25,49 +25,49 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
+  <div class="max-w-4xl mx-auto px-8">
     <!-- Page header -->
-    <div class="mb-10 flex items-end gap-6">
-      <h2 class="text-5xl font-black text-on-surface tracking-tighter font-display">我的收藏</h2>
-      <span class="text-sm font-bold text-primary mb-2 font-label uppercase tracking-widest">{{ songCount }} 首歌曲</span>
+    <div class="mb-10">
+      <h1 class="text-5xl font-extrabold text-on-surface font-display tracking-tight mb-2">我的收藏</h1>
+      <p class="text-on-surface-variant">{{ songCount }} 首歌曲</p>
     </div>
 
     <!-- Favorites list -->
-    <div class="space-y-10">
+    <div class="flex flex-col gap-4">
       <div
         v-for="favorite in favorites"
         :key="favorite.id"
-        class="flex items-center gap-6 p-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer"
+        class="flex items-center gap-6 p-4 -mx-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
       >
         <!-- Album cover -->
         <img
           v-if="favorite.song.coverUrl"
           :src="API_BASE + favorite.song.coverUrl"
-          class="w-20 h-20 rounded flex-shrink-0 object-cover"
+          class="w-16 h-16 rounded shrink-0 object-cover"
           :alt="favorite.song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-20 h-20 bg-slate-200 rounded flex-shrink-0 shadow-sm overflow-hidden flex items-center justify-center">
-          <span class="material-symbols-outlined text-slate-400 text-lg opacity-50">image</span>
+        <div v-else class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-400">image</span>
         </div>
 
         <!-- Song info -->
         <div class="flex-1 min-w-0">
-          <h3 class="text-xl font-bold text-on-surface truncate font-display">{{ favorite.song.title }}</h3>
-          <p class="text-sm text-slate-500 font-medium font-body">{{ favorite.song.artist }}</p>
+          <h3 class="text-xl font-bold text-on-surface truncate font-headline mb-1">{{ favorite.song.title }}</h3>
+          <p class="text-sm text-on-surface-variant truncate font-label">{{ favorite.song.artist }}</p>
         </div>
 
         <!-- Actions (hidden by default, shown on hover) -->
-        <div class="flex items-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             @click="unfavorite(favorite.songId)"
-            class="p-3 text-error hover:bg-error/10 rounded-full transition-colors"
+            class="w-10 h-10 flex items-center justify-center text-error hover:bg-error/10 rounded-full transition-colors"
           >
             <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1">favorite</span>
           </button>
           <button
             @click="orderSong(favorite.song)"
-            class="px-8 py-3 bg-primary text-white rounded-full font-bold text-sm tracking-wide hover:bg-secondary active:scale-95 transition-all shadow-md shadow-primary/20"
+            class="px-6 py-3 bg-primary text-on-primary rounded-full font-bold text-sm active:scale-90 transition-transform shadow-lg shadow-primary/10"
           >
             点歌
           </button>
