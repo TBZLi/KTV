@@ -27,7 +27,7 @@ const sidebarCollapsed = ref(false)
     <div style="position: relative; z-index: 1;">
       <TopNavBar />
       <SideNavBar :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
-      <main class="pt-24 px-10 pb-32 transition-all duration-300" :class="sidebarCollapsed ? 'ml-20' : 'ml-64'">
+      <main class="pt-24 px-10 pb-28 transition-all duration-300" :class="sidebarCollapsed ? 'ml-20' : 'ml-64'">
         <div class="max-w-6xl mx-auto">
           <router-view />
         </div>
