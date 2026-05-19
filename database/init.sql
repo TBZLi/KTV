@@ -1,7 +1,8 @@
 -- ============================================
--- 声域友 KTV System — 数据库初始化脚本 v2.0
+-- 声域友 KTV System — 数据库初始化脚本 v2.0.5
 -- 适用数据库: SQL Server
 -- 用法: 在 SQL Server Management Studio 或 sqlcmd 中执行此脚本
+-- 注意: 会删除并重建所有表，仅保留管理员账号
 -- ============================================
 
 -- 如果数据库不存在则创建
@@ -25,6 +26,8 @@ IF OBJECT_ID('dbo.Favorites', 'U') IS NOT NULL DROP TABLE Favorites;
 IF OBJECT_ID('dbo.PlayQueue', 'U') IS NOT NULL DROP TABLE PlayQueue;
 IF OBJECT_ID('dbo.RoomUsers', 'U') IS NOT NULL DROP TABLE RoomUsers;
 IF OBJECT_ID('dbo.RoomRequests', 'U') IS NOT NULL DROP TABLE RoomRequests;
+IF OBJECT_ID('dbo.Orders', 'U') IS NOT NULL DROP TABLE Orders;
+IF OBJECT_ID('dbo.Holidays', 'U') IS NOT NULL DROP TABLE Holidays;
 IF OBJECT_ID('dbo.Rooms', 'U') IS NOT NULL DROP TABLE Rooms;
 IF OBJECT_ID('dbo.Songs', 'U') IS NOT NULL DROP TABLE Songs;
 IF OBJECT_ID('dbo.Users', 'U') IS NOT NULL DROP TABLE Users;
@@ -44,13 +47,14 @@ CREATE TABLE Users (
     Phone           NVARCHAR(20) NULL,
     Email           NVARCHAR(100) NULL,
     AvatarUrl       NVARCHAR(500) NULL,
+    Balance         DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
+    IsVip           BIT NOT NULL DEFAULT 0,
     Role            NVARCHAR(20) NOT NULL DEFAULT 'user',
     Status          NVARCHAR(20) NOT NULL DEFAULT 'active',
     LastActiveAt    DATETIME2 NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
-CREATE UNIQUE INDEX IX_Users_Email ON Users(Email) WHERE Email IS NOT NULL;
 
 -- 歌曲表
 CREATE TABLE Songs (
@@ -66,12 +70,9 @@ CREATE TABLE Songs (
     OriginalFileName NVARCHAR(500) NULL,
     PlayCount       INT NOT NULL DEFAULT 0,
     Status          NVARCHAR(20) NOT NULL DEFAULT 'active',
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
-    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
-CREATE INDEX IX_Songs_Genre ON Songs(Genre);
-CREATE INDEX IX_Songs_Status ON Songs(Status);
-CREATE INDEX IX_Songs_PlayCount ON Songs(PlayCount DESC);
 
 -- 虚拟房间表
 CREATE TABLE Rooms (
@@ -81,7 +82,7 @@ CREATE TABLE Rooms (
     CreatedByUserId INT NOT NULL,
     CurrentUsers    INT NOT NULL DEFAULT 0,
     IdleCloseAt     DATETIME2 NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     ClosedAt        DATETIME2 NULL
 );
 
@@ -91,7 +92,7 @@ CREATE TABLE RoomRequests (
     UserId          INT NOT NULL,
     Status          NVARCHAR(20) NOT NULL DEFAULT 'pending',
     RoomId          INT NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     ProcessedAt     DATETIME2 NULL,
     ProcessedBy     INT NULL
 );
@@ -101,7 +102,7 @@ CREATE TABLE RoomUsers (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
     RoomId          INT NOT NULL,
     UserId          INT NOT NULL,
-    JoinedAt        DATETIME2 NOT NULL DEFAULT GETDATE(),
+    JoinedAt        DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CONSTRAINT UQ_RoomUsers UNIQUE (UserId)
 );
 
@@ -113,19 +114,17 @@ CREATE TABLE PlayQueue (
     OrderedByUserId INT NOT NULL,
     SortOrder       INT NOT NULL DEFAULT 0,
     Status          NVARCHAR(20) NOT NULL DEFAULT 'queued',
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
-CREATE INDEX IX_PlayQueue_RoomId_SortOrder ON PlayQueue(RoomId, SortOrder);
 
 -- 收藏表
 CREATE TABLE Favorites (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
     UserId          INT NOT NULL,
     SongId          INT NOT NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     CONSTRAINT UQ_Favorites_User_Song UNIQUE (UserId, SongId)
 );
-CREATE INDEX IX_Favorites_UserId ON Favorites(UserId);
 
 -- 反馈表
 CREATE TABLE Feedbacks (
@@ -136,7 +135,7 @@ CREATE TABLE Feedbacks (
     Artist          NVARCHAR(200) NULL,
     Description     NVARCHAR(1000) NULL,
     Status          NVARCHAR(20) NOT NULL DEFAULT 'pending',
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE(),
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
     ProcessedAt     DATETIME2 NULL
 );
 
@@ -145,7 +144,7 @@ CREATE TABLE SystemSettings (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
     SettingKey      NVARCHAR(100) NOT NULL UNIQUE,
     SettingValue    NVARCHAR(MAX) NOT NULL,
-    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    UpdatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
 
 -- 聊天消息表
@@ -153,11 +152,10 @@ CREATE TABLE ChatMessages (
     Id              INT IDENTITY(1,1) PRIMARY KEY,
     RoomId          INT NOT NULL,
     UserId          INT NOT NULL,
-    Nickname        NVARCHAR(100) NOT NULL,
-    Content         NVARCHAR(500) NOT NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    Nickname        NVARCHAR(50) NOT NULL,
+    Content         NVARCHAR(200) NOT NULL,
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
-CREATE INDEX IX_ChatMessages_RoomId ON ChatMessages(RoomId, CreatedAt);
 
 -- 操作日志表
 CREATE TABLE OperationLogs (
@@ -166,9 +164,50 @@ CREATE TABLE OperationLogs (
     OperationType   NVARCHAR(50) NOT NULL,
     ObjectType      NVARCHAR(50) NOT NULL,
     ObjectId        NVARCHAR(50) NULL,
-    Details         NVARCHAR(500) NULL,
-    CreatedAt       DATETIME2 NOT NULL DEFAULT GETDATE()
+    Details         NVARCHAR(MAX) NULL,
+    CreatedAt       DATETIME2 NOT NULL DEFAULT GETUTCDATE()
 );
+
+GO
+
+-- ============================================
+-- 外键约束
+-- ============================================
+
+ALTER TABLE RoomRequests ADD CONSTRAINT FK_RoomRequests_Users FOREIGN KEY (UserId) REFERENCES Users(Id);
+ALTER TABLE RoomRequests ADD CONSTRAINT FK_RoomRequests_Rooms FOREIGN KEY (RoomId) REFERENCES Rooms(Id);
+ALTER TABLE RoomRequests ADD CONSTRAINT FK_RoomRequests_ProcessedBy FOREIGN KEY (ProcessedBy) REFERENCES Users(Id);
+
+ALTER TABLE RoomUsers ADD CONSTRAINT FK_RoomUsers_Rooms FOREIGN KEY (RoomId) REFERENCES Rooms(Id);
+ALTER TABLE RoomUsers ADD CONSTRAINT FK_RoomUsers_Users FOREIGN KEY (UserId) REFERENCES Users(Id);
+
+ALTER TABLE PlayQueue ADD CONSTRAINT FK_PlayQueue_Songs FOREIGN KEY (SongId) REFERENCES Songs(Id);
+ALTER TABLE PlayQueue ADD CONSTRAINT FK_PlayQueue_Users FOREIGN KEY (OrderedByUserId) REFERENCES Users(Id);
+
+ALTER TABLE Favorites ADD CONSTRAINT FK_Favorites_Users FOREIGN KEY (UserId) REFERENCES Users(Id);
+ALTER TABLE Favorites ADD CONSTRAINT FK_Favorites_Songs FOREIGN KEY (SongId) REFERENCES Songs(Id);
+
+ALTER TABLE Feedbacks ADD CONSTRAINT FK_Feedbacks_Users FOREIGN KEY (UserId) REFERENCES Users(Id);
+
+ALTER TABLE ChatMessages ADD CONSTRAINT FK_ChatMessages_Rooms FOREIGN KEY (RoomId) REFERENCES Rooms(Id);
+ALTER TABLE ChatMessages ADD CONSTRAINT FK_ChatMessages_Users FOREIGN KEY (UserId) REFERENCES Users(Id);
+
+GO
+
+-- ============================================
+-- 索引
+-- ============================================
+
+CREATE INDEX IX_Songs_Genre ON Songs(Genre);
+CREATE INDEX IX_Songs_Status ON Songs(Status);
+CREATE INDEX IX_Songs_PlayCount ON Songs(PlayCount DESC);
+
+CREATE INDEX IX_PlayQueue_RoomId_SortOrder ON PlayQueue(RoomId, SortOrder);
+
+CREATE INDEX IX_Favorites_UserId ON Favorites(UserId);
+
+CREATE INDEX IX_ChatMessages_RoomId ON ChatMessages(RoomId, CreatedAt);
+
 CREATE INDEX IX_OperationLogs_CreatedAt ON OperationLogs(CreatedAt DESC);
 CREATE INDEX IX_OperationLogs_Type ON OperationLogs(OperationType);
 
@@ -178,7 +217,7 @@ GO
 -- 种子数据
 -- ============================================
 
--- 系统设置
+-- 系统设置（v2.0 配置项）
 INSERT INTO SystemSettings (SettingKey, SettingValue) VALUES
     (N'platform_name', N'声域友 KTV'),
     (N'contact_info', N'admin@ktv.com'),
@@ -186,23 +225,8 @@ INSERT INTO SystemSettings (SettingKey, SettingValue) VALUES
     (N'verify_close_room', N'true');
 
 -- 管理员账号（密码: demo_hash_admin）
--- 注意: 密码以明文存储，仅用于课程项目演示
-INSERT INTO Users (Username, PasswordHash, DisplayName, Role, Status, CreatedAt, UpdatedAt) VALUES
-    (N'admin', N'demo_hash_admin', N'管理员', N'admin', N'active', GETDATE(), GETDATE());
-
--- 示例用户（密码均为 123456）
-INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, Role, Status, CreatedAt, UpdatedAt) VALUES
-    (N'zhangsan', N'123456', N'张三', N'13800000001', N'user', N'active', GETDATE(), GETDATE()),
-    (N'lisi',     N'123456', N'李四', N'13800000002', N'user', N'active', GETDATE(), GETDATE());
-
--- 示例歌曲（音乐文件需放入 backend/wwwroot/uploads/music/ 目录）
-INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, OriginalFileName, PlayCount, Status, CreatedAt) VALUES
-    (N'魂牵梦绕想着你',     N'倪尔萍',           N'流行', N'中文', 203, 3281633, N'/uploads/covers/default.jpg', N'/uploads/music/倪尔萍 - 魂牵梦绕想着你 [mqms].mp3', N'倪尔萍 - 魂牵梦绕想着你 [mqms].mp3', 0, N'active', GETDATE()),
-    (N'老公最好',           N'弓秀丽',           N'流行', N'中文', 219, 3513177, N'/uploads/covers/default.jpg', N'/uploads/music/弓秀丽 - 老公最好 [mqms].mp3', N'弓秀丽 - 老公最好 [mqms].mp3', 0, N'active', GETDATE()),
-    (N'爱到最后就是痛',     N'涓子&落叶摇情',    N'流行', N'中文', 220, 3534914, N'/uploads/covers/default.jpg', N'/uploads/music/涓子&落叶摇情 - 爱到最后就是痛 [mqms].mp3', N'涓子&落叶摇情 - 爱到最后就是痛 [mqms].mp3', 0, N'active', GETDATE()),
-    (N'你的眼角流着我的泪', N'王韵',             N'流行', N'中文', 216, 3458856, N'/uploads/covers/default.jpg', N'/uploads/music/王韵 - 你的眼角流着我的泪 [mqms2].mp3', N'王韵 - 你的眼角流着我的泪 [mqms2].mp3', 0, N'active', GETDATE()),
-    (N'一分不是爱，一分是伤害', N'网络歌手',       N'流行', N'中文', 191, 3058035, N'/uploads/covers/default.jpg', N'/uploads/music/网络歌手 - 一分不是爱，一分是伤害 [mqms].mp3', N'网络歌手 - 一分不是爱，一分是伤害 [mqms].mp3', 0, N'active', GETDATE()),
-    (N'爱我是你说的谎',     N'项泽云',           N'流行', N'中文', 214, 3428775, N'/uploads/covers/default.jpg', N'/uploads/music/项泽云 - 爱我是你说的谎 (Live) [mqms].mp3', N'项泽云 - 爱我是你说的谎 (Live) [mqms].mp3', 0, N'active', GETDATE());
+INSERT INTO Users (Username, PasswordHash, DisplayName, Phone, AvatarUrl, Role, Status, CreatedAt, UpdatedAt) VALUES
+    (N'admin', N'demo_hash_admin', N'管理员', N'13800000000', N'/uploads/avatars/default.jpg', N'admin', N'active', GETUTCDATE(), GETUTCDATE());
 
 GO
 
@@ -213,7 +237,6 @@ PRINT N'表: Users, Songs, Rooms, RoomRequests, RoomUsers,';
 PRINT N'     PlayQueue, Favorites, Feedbacks, SystemSettings,';
 PRINT N'     ChatMessages, OperationLogs';
 PRINT N'';
-PRINT N'管理员账号: admin / admin123';
-PRINT N'示例用户: zhangsan / 123456, lisi / 123456';
-PRINT N'示例歌曲: 6 首（需确保 MP3 文件在 wwwroot/uploads/music/ 目录下）';
+PRINT N'管理员账号: admin / demo_hash_admin';
+PRINT N'歌曲需通过管理端新增';
 PRINT N'============================================';
