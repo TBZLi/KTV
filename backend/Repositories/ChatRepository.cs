@@ -33,6 +33,16 @@ public class ChatRepository : IChatRepository
             new { RoomId = roomId, UserId = userId, Nickname = nickname, Content = filtered });
     }
 
+    public async Task<int> CreateSystemMessageAsync(int roomId, int userId, string content)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            @"INSERT INTO ChatMessages (RoomId, UserId, Nickname, Content, CreatedAt)
+              OUTPUT INSERTED.Id
+              VALUES (@RoomId, @UserId, N'系统', @Content, GETDATE())",
+            new { RoomId = roomId, UserId = userId, Content = content });
+    }
+
     public async Task<List<ChatMessage>> GetMessagesAsync(int roomId, int limit = 50)
     {
         using var conn = CreateConnection();

@@ -4,7 +4,10 @@
 
 @layer base {
   body {
-    @apply font-body bg-surface text-on-surface antialiased;
+    @apply font-body text-on-surface antialiased;
+    background: #ffffff;
+    min-width: 1024px;
+    min-height: 600px;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline;

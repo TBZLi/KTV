@@ -20,7 +20,7 @@ async function handleLogout() {
 </script>
 
 <template>
-  <header class="fixed top-0 left-0 right-0 z-50 bg-surface flex justify-between items-center w-full px-8 py-4 font-headline text-sm tracking-wide">
+  <header class="fixed top-0 left-0 right-0 z-50 glass flex justify-between items-center w-full px-8 py-4 font-headline text-sm tracking-wide">
     <div class="flex items-center gap-8">
       <span class="text-xl font-bold tracking-tighter text-on-surface">声域友</span>
       <div class="relative w-96">

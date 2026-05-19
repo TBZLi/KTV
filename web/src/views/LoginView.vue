@@ -65,13 +65,9 @@ function skipRoomSelection() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface flex items-center justify-center relative overflow-hidden">
-    <!-- Decorative background circles -->
-    <div class="absolute top-[-200px] left-[-200px] w-[500px] h-[500px] rounded-full bg-primary-fixed/40 blur-[120px] pointer-events-none" />
-    <div class="absolute bottom-[-200px] right-[-200px] w-[600px] h-[600px] rounded-full bg-secondary-fixed/50 blur-[150px] pointer-events-none" />
-
+  <div class="min-h-screen flex items-center justify-center relative overflow-hidden">
     <!-- Login card -->
-    <div class="relative z-10 w-full max-w-[480px] bg-surface-container-lowest rounded-2xl p-12 shadow-ambient">
+    <div class="relative z-10 w-full max-w-[480px] glass rounded-2xl p-12 shadow-ambient">
       <!-- Logo section -->
       <div class="text-center mb-10">
         <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
@@ -133,7 +129,7 @@ function skipRoomSelection() {
 
     <!-- Room Selection Dialog (after login) -->
     <div v-if="showRoomDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="skipRoomSelection">
-      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
+      <div class="glass rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
         <h2 class="text-2xl font-headline font-bold text-on-surface text-center">加入房间</h2>
         <p class="text-sm text-on-surface-variant text-center">输入房间码加入已有房间，或申请创建新房间</p>
 

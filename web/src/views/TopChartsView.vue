@@ -35,13 +35,13 @@ onMounted(() => {
     <div class="mb-10 flex flex-col gap-6">
       <h1 class="text-5xl font-extrabold text-on-surface font-display tracking-tight">热门榜单</h1>
       <!-- Period toggle -->
-      <div class="flex bg-surface-container-low p-1 rounded-full w-max">
+      <div class="flex glass p-1 rounded-full w-max">
         <button
           @click="setPeriod('daily')"
           :class="[
             'px-6 py-2 rounded-full font-label font-bold transition-all',
             period === 'daily'
-              ? 'bg-surface-container-lowest text-primary shadow-sm'
+              ? 'glass text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-primary',
           ]"
         >
@@ -52,7 +52,7 @@ onMounted(() => {
           :class="[
             'px-6 py-2 rounded-full font-label font-bold transition-all',
             period === 'weekly'
-              ? 'bg-surface-container-lowest text-primary shadow-sm'
+              ? 'glass text-primary shadow-sm'
               : 'text-on-surface-variant hover:text-primary',
           ]"
         >
@@ -66,7 +66,7 @@ onMounted(() => {
       <div
         v-for="(song, index) in charts"
         :key="song.id"
-        class="flex items-center gap-6 group hover:bg-surface-container-lowest p-4 -mx-4 rounded-lg transition-colors cursor-pointer"
+        class="flex items-center gap-6 hover:glass hover:shadow-lg hover:scale-[1.02] p-4 -mx-4 rounded-lg transition-all duration-300 cursor-pointer"
       >
         <!-- Rank number -->
         <span
@@ -80,7 +80,7 @@ onMounted(() => {
         <img
           v-if="song.coverUrl"
           :src="API_BASE + song.coverUrl"
-          class="w-16 h-16 rounded shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+          class="w-16 h-16 rounded shrink-0 object-cover"
           :alt="song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />

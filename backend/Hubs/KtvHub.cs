@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using backend.Services;
+using backend.Repositories;
 using System.Collections.Concurrent;
 
 namespace backend.Hubs;
@@ -41,6 +42,18 @@ public class KtvHub : Hub
 
             _connections[Context.ConnectionId] = (roomId, nickname, userId);
 
+            // Insert system message for room entry
+            if (userId > 0)
+            {
+                try
+                {
+                    using var chatScope = _serviceProvider.CreateScope();
+                    var chatRepo = chatScope.ServiceProvider.GetRequiredService<IChatRepository>();
+                    await chatRepo.CreateSystemMessageAsync(roomId, userId, $"{nickname} 进入了房间");
+                }
+                catch (Exception chatEx) { _logger.LogWarning(chatEx, "Failed to insert join system message"); }
+            }
+
             await Clients.Group($"room-{roomId}").SendAsync("UserJoined", nickname);
             _logger.LogInformation("JoinRoom SUCCESS: roomId={RoomId}, userId={UserId}", roomId, userId);
         }
@@ -61,6 +74,14 @@ public class KtvHub : Hub
                 using var scope = _serviceProvider.CreateScope();
                 var roomService = scope.ServiceProvider.GetRequiredService<RoomService>();
                 await roomService.LeaveRoomAsync(roomId, info.userId);
+
+                // Insert system message for room exit
+                try
+                {
+                    var chatRepo = scope.ServiceProvider.GetRequiredService<IChatRepository>();
+                    await chatRepo.CreateSystemMessageAsync(roomId, info.userId, $"{info.nickname} 退出了房间");
+                }
+                catch (Exception chatEx) { _logger.LogWarning(chatEx, "Failed to insert leave system message"); }
             }
             await Clients.Group($"room-{roomId}").SendAsync("UserLeft", nickname);
         }
@@ -97,6 +118,14 @@ public class KtvHub : Hub
                     using var scope = _serviceProvider.CreateScope();
                     var roomService = scope.ServiceProvider.GetRequiredService<RoomService>();
                     await roomService.LeaveRoomAsync(info.roomId, info.userId);
+
+                    // Insert system message for unexpected disconnect
+                    try
+                    {
+                        var chatRepo = scope.ServiceProvider.GetRequiredService<IChatRepository>();
+                        await chatRepo.CreateSystemMessageAsync(info.roomId, info.userId, $"{info.nickname} 退出了房间");
+                    }
+                    catch (Exception chatEx) { _logger.LogWarning(chatEx, "Failed to insert disconnect system message"); }
                 }
                 catch (Exception ex) { _logger.LogError(ex, "Failed to decrement on disconnect"); }
             }

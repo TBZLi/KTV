@@ -37,13 +37,13 @@ onMounted(() => {
       <div
         v-for="favorite in favorites"
         :key="favorite.id"
-        class="group flex items-center gap-6 p-4 rounded-lg hover:bg-surface-container-low transition-all duration-200"
+        class="flex items-center gap-6 p-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-pointer"
       >
         <!-- Album cover -->
         <img
           v-if="favorite.song.coverUrl"
           :src="API_BASE + favorite.song.coverUrl"
-          class="w-20 h-20 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+          class="w-20 h-20 rounded flex-shrink-0 object-cover"
           :alt="favorite.song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />

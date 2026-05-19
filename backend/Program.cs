@@ -245,6 +245,7 @@ app.UseStaticFiles();
 app.UseCors("AllowFrontends");
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<UpdateLastActiveMiddleware>();
 app.UseMiddleware<ErrorHandlingMiddleware>();
 app.UseMiddleware<OperationLoggingMiddleware>();
 app.MapControllers();

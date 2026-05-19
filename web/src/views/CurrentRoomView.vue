@@ -237,20 +237,20 @@ onUnmounted(() => {
           </button>
         </div>
         <div class="flex gap-8 text-sm font-medium text-on-surface-variant">
-          <span v-if="roomInfo" class="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-full">
+          <span v-if="roomInfo" class="flex items-center gap-2 glass px-4 py-2 rounded-full">
             <span class="material-symbols-outlined text-sm">label</span> 房间码: {{ roomInfo.roomCode }}
           </span>
-          <span v-if="roomInfo" class="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-full">
+          <span v-if="roomInfo" class="flex items-center gap-2 glass px-4 py-2 rounded-full">
             <span class="material-symbols-outlined text-sm">group</span> 在线: {{ roomInfo.onlineUsers }} 人
           </span>
-          <span class="flex items-center gap-2 bg-surface-container-low px-4 py-2 rounded-full">
+          <span class="flex items-center gap-2 glass px-4 py-2 rounded-full">
             <span class="material-symbols-outlined text-sm">format_list_bulleted</span> 已点歌曲: {{ queue.length }}
           </span>
         </div>
       </div>
 
       <!-- Now Playing hero card -->
-      <div v-if="player.currentTrack" class="bg-surface-container-lowest rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
+      <div v-if="player.currentTrack" class="glass rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
         <img
           :src="API_BASE + player.currentTrack.coverUrl"
           class="w-48 h-48 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
@@ -285,7 +285,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Empty now-playing state -->
-      <div v-else class="bg-surface-container-lowest rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
+      <div v-else class="glass rounded-xl p-8 shadow-sm flex gap-8 items-center mb-10">
         <div class="w-48 h-48 bg-slate-100 rounded-lg flex-shrink-0 flex items-center justify-center">
           <span class="material-symbols-outlined text-6xl text-slate-300">music_off</span>
         </div>
@@ -297,11 +297,11 @@ onUnmounted(() => {
 
       <!-- Queue section -->
       <h3 class="text-xl font-bold px-2 mb-4">播放列表</h3>
-      <div class="bg-surface-container-lowest rounded-xl overflow-hidden">
+      <div class="rounded-xl overflow-hidden">
         <div
           v-for="(item, index) in queue"
           :key="item.id"
-          class="flex items-center px-8 py-6 hover:bg-surface-container-low transition-colors group cursor-pointer"
+          class="flex items-center px-8 py-6 hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
           :class="{ 'bg-primary/5': player.currentTrack?.songId === item.songId }"
           @click="playSong(item.songId)"
         >
@@ -314,7 +314,7 @@ onUnmounted(() => {
           </span>
           <img
             :src="API_BASE + item.coverUrl"
-            class="w-12 h-12 rounded flex-shrink-0 object-cover mx-6 cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+            class="w-12 h-12 rounded flex-shrink-0 object-cover mx-6"
             :alt="item.songTitle"
             @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
           />
@@ -342,7 +342,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Right: Chat panel -->
-    <div class="w-80 flex-shrink-0 bg-surface-container-lowest rounded-xl shadow-sm flex flex-col" style="height: calc(100vh - 200px)">
+    <div class="w-80 flex-shrink-0 glass rounded-xl shadow-sm flex flex-col" style="height: calc(100vh - 200px)">
       <div class="p-4 border-b border-surface-container-highest">
         <h3 class="font-bold text-on-surface flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-xl">chat</span>
@@ -353,7 +353,7 @@ onUnmounted(() => {
       <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-3">
         <div v-for="(msg, i) in chatMessages" :key="i" class="text-sm">
           <div v-if="msg.nickname === '系统'" class="text-center text-xs text-on-surface-variant/60 py-1">
-            {{ msg.message }}
+            [{{ msg.timestamp }}] {{ msg.message }}
           </div>
           <div v-else class="flex flex-col">
             <div class="flex items-center gap-2 mb-0.5">

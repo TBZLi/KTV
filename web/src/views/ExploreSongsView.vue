@@ -132,7 +132,7 @@ onMounted(() => {
           'px-8 py-3 rounded-full font-bold font-body transition-all',
           selectedGenre === ''
             ? 'bg-primary text-on-primary'
-            : 'bg-surface-container-lowest text-on-surface hover:bg-primary-fixed shadow-sm',
+            : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
         ]"
       >
         全部
@@ -145,7 +145,7 @@ onMounted(() => {
           'px-8 py-3 rounded-full font-bold font-body transition-all',
           selectedGenre === genre
             ? 'bg-primary text-on-primary'
-            : 'bg-surface-container-lowest text-on-surface hover:bg-primary-fixed shadow-sm',
+            : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
         ]"
       >
         {{ genre }}
@@ -157,13 +157,13 @@ onMounted(() => {
       <div
         v-for="song in songs"
         :key="song.id"
-        class="group flex items-center gap-6 p-4 bg-white hover:bg-surface-container-low rounded-lg transition-all duration-300 active:scale-[0.99]"
+        class="flex items-center gap-6 p-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 active:scale-[0.99] cursor-pointer"
       >
         <!-- Album cover -->
         <img
           v-if="song.coverUrl"
           :src="API_BASE + song.coverUrl"
-          class="w-20 h-20 rounded flex-shrink-0 object-cover cursor-pointer transition-transform duration-200 hover:scale-[2.5] hover:shadow-lg hover:z-10 relative"
+          class="w-20 h-20 rounded flex-shrink-0 object-cover"
           :alt="song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
@@ -215,7 +215,7 @@ onMounted(() => {
 
     <!-- Feedback Dialog -->
     <div v-if="showFeedbackDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showFeedbackDialog = false">
-      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
+      <div class="glass rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
         <template v-if="!feedbackSuccess">
           <h3 class="text-xl font-display font-bold text-on-surface">用户反馈</h3>
           <div class="space-y-4">

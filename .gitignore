@@ -40,3 +40,6 @@ npm-debug.log*
 
 # Claude Code settings (contain session permissions)
 .claude/settings.json
+
+# Temporary files
+临时图片/
