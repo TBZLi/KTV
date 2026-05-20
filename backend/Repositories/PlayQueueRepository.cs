@@ -15,7 +15,7 @@ public class PlayQueueRepository : IPlayQueueRepository
     {
         using var conn = CreateConnection();
         var items = await conn.QueryAsync<PlayQueueItem>(
-            @"SELECT pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl, s.MediaUrl,
+            @"SELECT pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl, s.MediaUrl, s.LrcUrl,
                      pq.OrderedByUserId, u.DisplayName AS OrderedBy, pq.SortOrder, pq.Status, pq.CreatedAt
               FROM PlayQueue pq
               INNER JOIN Songs s ON pq.SongId = s.Id
@@ -55,5 +55,19 @@ public class PlayQueueRepository : IPlayQueueRepository
         await conn.ExecuteAsync(
             "UPDATE PlayQueue SET SortOrder = @NewOrder WHERE Id = @Id",
             new { Id = queueId, NewOrder = newOrder });
+    }
+
+    public async Task ReorderBatchAsync(List<int> queueIds)
+    {
+        using var conn = CreateConnection();
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
+        for (int i = 0; i < queueIds.Count; i++)
+        {
+            await conn.ExecuteAsync(
+                "UPDATE PlayQueue SET SortOrder = @Order WHERE Id = @Id",
+                new { Id = queueIds[i], Order = i + 1 }, tran);
+        }
+        tran.Commit();
     }
 }

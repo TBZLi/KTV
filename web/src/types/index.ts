@@ -17,6 +17,7 @@ export interface Song {
   duration: number
   coverUrl: string
   mediaUrl: string
+  lrcUrl: string | null
   playCount: number
   status: 'active' | 'inactive'
   createdAt: string
@@ -30,6 +31,7 @@ export interface PlayQueueItem {
   artist: string
   coverUrl: string
   mediaUrl: string
+  lrcUrl: string | null
   orderedBy: string
   sortOrder: number
   createdAt: string

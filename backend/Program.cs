@@ -239,12 +239,14 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseCors("AllowFrontends");
+
 // Serve static files from wwwroot (for uploaded avatars, covers, music)
 var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
 contentTypeProvider.Mappings[".flac"] = "audio/flac";
+contentTypeProvider.Mappings[".lrc"] = "text/plain";
 app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = contentTypeProvider });
 
-app.UseCors("AllowFrontends");
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<UpdateLastActiveMiddleware>();

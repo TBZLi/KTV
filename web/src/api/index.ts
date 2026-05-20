@@ -31,6 +31,8 @@ export const roomApi = {
   getQueue: () => apiClient.get<PlayQueueItem[]>('/api/room/queue'),
   reorder: (queueId: number, newOrder: number) =>
     apiClient.post('/api/room/queue/reorder', { queueId, newOrder }),
+  reorderBatch: (queueIds: number[]) =>
+    apiClient.post('/api/room/queue/reorder-batch', { queueIds }),
   removeFromQueue: (queueId: number) =>
     apiClient.delete(`/api/room/queue/${queueId}`),
   joinByCode: (roomCode: string) =>

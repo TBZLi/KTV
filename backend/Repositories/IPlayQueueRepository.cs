@@ -8,4 +8,5 @@ public interface IPlayQueueRepository
     Task<int> AddAsync(PlayQueueItem item);
     Task RemoveAsync(int id);
     Task ReorderAsync(int queueId, int newOrder);
+    Task ReorderBatchAsync(List<int> queueIds);
 }

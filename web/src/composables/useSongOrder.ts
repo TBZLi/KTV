@@ -20,6 +20,7 @@ export function useSongOrder() {
         artist: song.artist,
         coverUrl: song.coverUrl,
         mediaUrl: song.mediaUrl,
+        lrcUrl: song.lrcUrl || '',
       })
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data || '点歌失败'

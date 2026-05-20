@@ -139,6 +139,15 @@ public class RoomController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("queue/reorder-batch")]
+    public async Task<IActionResult> ReorderBatch([FromBody] ReorderBatchRequest request)
+    {
+        if (request.QueueIds == null || request.QueueIds.Count == 0)
+            return BadRequest(new { message = "队列ID列表不能为空" });
+        await _queueRepo.ReorderBatchAsync(request.QueueIds);
+        return Ok();
+    }
+
     [HttpDelete("queue/{id}")]
     public async Task<IActionResult> RemoveFromQueue(int id)
     {

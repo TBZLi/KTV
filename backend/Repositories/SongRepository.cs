@@ -58,9 +58,9 @@ public class SongRepository : ISongRepository
     {
         using var conn = CreateConnection();
         return await conn.ExecuteScalarAsync<int>(
-            @"INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, OriginalFileName, PlayCount, Status)
+            @"INSERT INTO Songs (Title, Artist, Genre, Language, Duration, FileSize, CoverUrl, MediaUrl, LrcUrl, OriginalFileName, PlayCount, Status)
               OUTPUT INSERTED.Id
-              VALUES (@Title, @Artist, @Genre, @Language, @Duration, @FileSize, @CoverUrl, @MediaUrl, @OriginalFileName, 0, 'active')", song);
+              VALUES (@Title, @Artist, @Genre, @Language, @Duration, @FileSize, @CoverUrl, @MediaUrl, @LrcUrl, @OriginalFileName, 0, 'active')", song);
     }
 
     public async Task UpdateAsync(Song song)
@@ -68,7 +68,7 @@ public class SongRepository : ISongRepository
         using var conn = CreateConnection();
         await conn.ExecuteAsync(
             @"UPDATE Songs SET Title=@Title, Artist=@Artist, Genre=@Genre, Language=@Language, Duration=@Duration,
-              FileSize=@FileSize, CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, OriginalFileName=@OriginalFileName, Status=@Status, UpdatedAt=GETDATE()
+              FileSize=@FileSize, CoverUrl=@CoverUrl, MediaUrl=@MediaUrl, LrcUrl=@LrcUrl, OriginalFileName=@OriginalFileName, Status=@Status, UpdatedAt=GETDATE()
               WHERE Id=@Id", song);
     }
 

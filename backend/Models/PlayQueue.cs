@@ -9,6 +9,7 @@ public class PlayQueueItem
     public string Artist { get; set; } = string.Empty;
     public string? CoverUrl { get; set; }
     public string? MediaUrl { get; set; }
+    public string? LrcUrl { get; set; }
     public int OrderedByUserId { get; set; }
     public string OrderedBy { get; set; } = string.Empty;
     public int SortOrder { get; set; }
