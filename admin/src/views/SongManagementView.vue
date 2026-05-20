@@ -180,9 +180,9 @@
               <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
                 <span class="material-symbols-outlined text-on-surface-variant">audio_file</span>
                 <span class="text-sm text-on-surface-variant truncate">
-                  {{ musicFile ? musicFile.name : '选择 MP3 文件（最大 30MB）' }}
+                  {{ musicFile ? musicFile.name : '选择 MP3/FLAC 文件（最大 100MB）' }}
                 </span>
-                <input type="file" accept=".mp3" class="hidden" @change="onMusicSelected" />
+                <input type="file" accept=".mp3,.flac" class="hidden" @change="onMusicSelected" />
               </label>
               <span v-if="uploadingMusic" class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
             </div>
@@ -209,9 +209,25 @@
             <p v-if="coverUploadError" class="mt-1 text-xs text-error">{{ coverUploadError }}</p>
           </div>
 
+          <!-- LRC Upload -->
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">歌词文件（可选）</label>
+            <div class="flex items-center gap-3">
+              <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
+                <span class="material-symbols-outlined text-on-surface-variant">lyrics</span>
+                <span class="text-sm text-on-surface-variant truncate">
+                  {{ lrcFile ? lrcFile.name : '选择 LRC 歌词文件（最大 1MB）' }}
+                </span>
+                <input type="file" accept=".lrc" class="hidden" @change="onLrcSelected" />
+              </label>
+              <span v-if="uploadingLrc" class="material-symbols-outlined animate-spin text-primary">progress_activity</span>
+            </div>
+            <p v-if="lrcUploadError" class="mt-1 text-xs text-error">{{ lrcUploadError }}</p>
+          </div>
+
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" @click="showDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
-            <button type="submit" :disabled="saving || uploadingMusic || uploadingCover" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+            <button type="submit" :disabled="saving || uploadingMusic || uploadingCover || uploadingLrc" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
@@ -271,6 +287,10 @@ const musicFile = ref<File | null>(null)
 const uploadingMusic = ref(false)
 const musicUploadError = ref('')
 
+const lrcFile = ref<File | null>(null)
+const uploadingLrc = ref(false)
+const lrcUploadError = ref('')
+
 const form = ref({
   title: '',
   artist: '',
@@ -280,6 +300,7 @@ const form = ref({
   fileSize: 0 as number | null,
   coverUrl: null as string | null,
   mediaUrl: null as string | null,
+  lrcUrl: null as string | null,
   originalFileName: null as string | null,
 })
 
@@ -335,11 +356,13 @@ function goToDetail(id: number) {
 }
 
 function openAddDialog() {
-  form.value = { title: '', artist: '', genre: '流行', language: '中文', duration: 0, fileSize: null, coverUrl: null, mediaUrl: null, originalFileName: null }
+  form.value = { title: '', artist: '', genre: '流行', language: '中文', duration: 0, fileSize: null, coverUrl: null, mediaUrl: null, lrcUrl: null, originalFileName: null }
   coverFile.value = null
   coverPreview.value = null
   coverUploadError.value = ''
   musicFile.value = null
+  lrcFile.value = null
+  lrcUploadError.value = ''
   showDialog.value = true
 }
 
@@ -351,8 +374,15 @@ function onCoverSelected(e: Event) {
   coverUploadError.value = ''
 }
 
+function onLrcSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  lrcFile.value = file
+  lrcUploadError.value = ''
+}
+
 function parseFilename(file: File): { title: string; artist: string } {
-  let name = file.name.replace(/\.mp3$/i, '').replace(/\s*\[.*?\]\s*/g, '').trim()
+  let name = file.name.replace(/\.(mp3|flac)$/i, '').replace(/\s*\[.*?\]\s*/g, '').trim()
   const parts = name.split(/\s*-\s*/)
   if (parts.length >= 2) {
     return { artist: parts[0].trim(), title: parts.slice(1).join('-').trim() }
@@ -469,6 +499,20 @@ async function handleSave() {
         return
       } finally {
         uploadingCover.value = false
+      }
+    }
+
+    // Upload LRC (optional)
+    if (lrcFile.value) {
+      uploadingLrc.value = true
+      try {
+        const res = await uploadApi.lrc(lrcFile.value)
+        form.value.lrcUrl = res.data.url
+      } catch (err: any) {
+        lrcUploadError.value = err.response?.data?.message || '歌词文件上传失败'
+        return
+      } finally {
+        uploadingLrc.value = false
       }
     }
 

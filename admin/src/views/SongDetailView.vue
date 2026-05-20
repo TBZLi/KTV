@@ -144,9 +144,29 @@
             <label class="inline-flex items-center gap-2 px-4 py-2 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors text-sm text-on-surface-variant">
               <span class="material-symbols-outlined text-sm">swap_horiz</span>
               替换音乐文件
-              <input type="file" accept=".mp3" class="hidden" @change="onMusicReplace" />
+              <input type="file" accept=".mp3,.flac" class="hidden" @change="onMusicReplace" />
             </label>
             <p class="text-xs text-on-surface-variant">替换后原文件将被删除</p>
+          </div>
+        </div>
+
+        <!-- LRC File Section -->
+        <div class="mt-8 pt-6 border-t border-surface-container-highest">
+          <label class="block text-sm font-medium text-on-surface-variant mb-2">歌词文件</label>
+          <div v-if="!editing" class="flex items-center gap-3 text-on-surface">
+            <span class="material-symbols-outlined text-primary">lyrics</span>
+            <span class="text-sm truncate">{{ detail.lrcUrl ? detail.lrcUrl.split('/').pop() : '未上传' }}</span>
+          </div>
+          <div v-else class="space-y-2">
+            <div class="flex items-center gap-3 text-on-surface">
+              <span class="material-symbols-outlined text-primary">lyrics</span>
+              <span class="text-sm truncate">{{ currentLrcName }}</span>
+            </div>
+            <label class="inline-flex items-center gap-2 px-4 py-2 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors text-sm text-on-surface-variant">
+              <span class="material-symbols-outlined text-sm">{{ detail.lrcUrl ? 'swap_horiz' : 'upload' }}</span>
+              {{ detail.lrcUrl ? '替换歌词文件' : '上传歌词文件' }}
+              <input type="file" accept=".lrc" class="hidden" @change="onLrcReplace" />
+            </label>
           </div>
         </div>
       </div>
@@ -205,6 +225,8 @@ const newMediaFile = ref<File | null>(null)
 const newMediaUrl = ref<string | null>(null)
 const newFileSize = ref<number | null>(null)
 const newDuration = ref<number | null>(null)
+const newLrcFile = ref<File | null>(null)
+const newLrcUrl = ref<string | null>(null)
 
 const currentCoverUrl = computed(() => {
   const url = newCoverUrl.value || detail.value?.coverUrl
@@ -215,6 +237,10 @@ const currentCoverUrl = computed(() => {
 const currentMediaName = computed(() => {
   if (newMediaFile.value) return newMediaFile.value.name
   return detail.value?.mediaUrl?.split('/').pop() || '未上传'
+})
+const currentLrcName = computed(() => {
+  if (newLrcFile.value) return newLrcFile.value.name
+  return detail.value?.lrcUrl?.split('/').pop() || '未上传'
 })
 
 function formatDate(dateStr: string): string {
@@ -248,6 +274,8 @@ function startEditing() {
   newMediaUrl.value = null
   newFileSize.value = null
   newDuration.value = null
+  newLrcFile.value = null
+  newLrcUrl.value = null
   editing.value = true
 }
 
@@ -296,6 +324,12 @@ function onMusicReplace(e: Event) {
   audio.src = URL.createObjectURL(file)
 }
 
+function onLrcReplace(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  newLrcFile.value = file
+}
+
 async function saveChanges() {
   if (!detail.value) return
   saving.value = true
@@ -314,6 +348,12 @@ async function saveChanges() {
       updateData.mediaUrl = res.data.url
       updateData.fileSize = newFileSize.value
       if (newDuration.value) updateData.duration = newDuration.value
+    }
+
+    // Upload new LRC if selected
+    if (newLrcFile.value) {
+      const res = await uploadApi.lrc(newLrcFile.value)
+      updateData.lrcUrl = res.data.url
     }
 
     // Text fields (always send to allow updates)

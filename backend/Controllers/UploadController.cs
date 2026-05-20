@@ -15,7 +15,8 @@ public class UploadController : ControllerBase
     {
         ["avatar"] = [".jpg", ".jpeg", ".png", ".gif", ".webp"],
         ["cover"]  = [".jpg", ".jpeg", ".png", ".webp"],
-        ["music"]  = [".mp3"]
+        ["music"]  = [".mp3", ".flac"],
+        ["lrc"]    = [".lrc"]
     };
 
     // Max file sizes per type (in bytes)
@@ -23,7 +24,8 @@ public class UploadController : ControllerBase
     {
         ["avatar"] = 2 * 1024 * 1024,   // 2MB
         ["cover"]  = 5 * 1024 * 1024,   // 5MB
-        ["music"]  = 30 * 1024 * 1024   // 30MB
+        ["music"]  = 100 * 1024 * 1024, // 100MB
+        ["lrc"]    = 1 * 1024 * 1024    // 1MB
     };
 
     public UploadController(IWebHostEnvironment env) => _env = env;
@@ -49,8 +51,17 @@ public class UploadController : ControllerBase
     /// </summary>
     [HttpPost("music")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(100 * 1024 * 1024)]
     public async Task<IActionResult> UploadMusic(IFormFile file)
         => await SaveFile(file, "music", "music");
+
+    /// <summary>
+    /// POST /api/upload/lrc
+    /// </summary>
+    [HttpPost("lrc")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadLrc(IFormFile file)
+        => await SaveFile(file, "lrc", "lyrics");
 
     private async Task<IActionResult> SaveFile(IFormFile file, string type, string subfolder)
     {

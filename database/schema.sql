@@ -33,6 +33,7 @@ CREATE TABLE Songs (
     FileSize        BIGINT NULL,
     CoverUrl        NVARCHAR(500) NULL,
     MediaUrl        NVARCHAR(500) NULL,
+    LrcUrl          NVARCHAR(500) NULL,
     OriginalFileName NVARCHAR(500) NULL,
     PlayCount       INT NOT NULL DEFAULT 0,
     Status          NVARCHAR(20) NOT NULL DEFAULT 'active',

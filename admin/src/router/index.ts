@@ -1,10 +1,13 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { authApi } from '@/api'
 
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    {
+      path: '/login',
+      name: 'Login',
+      component: () => import('@/views/LoginView.vue'),
+    },
     { path: '/', redirect: '/dashboard' },
     {
       path: '/dashboard',
@@ -55,24 +58,13 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to) => {
-  const auth = useAuthStore()
-
-  // Auto-login as admin if no token (admin console has no login page)
-  if (!auth.isLoggedIn) {
-    try {
-      const { data } = await authApi.login('admin', 'demo_hash_admin')
-      auth.setAuth(data.token, data.user)
-    } catch {
-      // Retry once after a short delay (backend might still be starting)
-      await new Promise(r => setTimeout(r, 1000))
-      try {
-        const { data } = await authApi.login('admin', 'demo_hash_admin')
-        auth.setAuth(data.token, data.user)
-      } catch {
-        console.error('Auto-login failed, pages will show empty data')
-      }
-    }
+router.beforeEach((to) => {
+  const token = localStorage.getItem('token')
+  if (to.meta.requiresAuth && !token) {
+    return { name: 'Login' }
+  }
+  if (to.name === 'Login' && token) {
+    return { name: 'Dashboard' }
   }
 })
 

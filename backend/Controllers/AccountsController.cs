@@ -55,7 +55,7 @@ public class AccountsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateAccountRequest request)
     {
-        var id = await _accountService.CreateAsync(request.Username, request.Password, request.DisplayName, request.Phone);
+        var id = await _accountService.CreateAsync(request.Username, request.Password, request.DisplayName, request.Phone, request.AvatarUrl);
         return Ok(new { id });
     }
 
@@ -86,6 +86,34 @@ public class AccountsController : ControllerBase
         try
         {
             await _accountService.DisableWithRoomKickAsync(id);
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("{id}/password")]
+    public async Task<IActionResult> ChangePassword(int id, [FromBody] ChangePasswordRequest request)
+    {
+        try
+        {
+            await _accountService.ChangePasswordAsync(id, request.NewPassword);
+            return Ok();
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(int id)
+    {
+        try
+        {
+            await _accountService.DeleteAsync(id);
             return Ok();
         }
         catch (Exception ex)

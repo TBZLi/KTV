@@ -120,4 +120,22 @@ public class UserRepository : IUserRepository
                 AND Role != 'admin'
                 AND Status = 'active'");
     }
+
+    public async Task DeleteAsync(int id)
+    {
+        using var conn = CreateConnection();
+        await conn.OpenAsync();
+        using var tran = conn.BeginTransaction();
+
+        await conn.ExecuteAsync("DELETE FROM Favorites WHERE UserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM PlayQueue WHERE OrderedByUserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM ChatMessages WHERE UserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM RoomUsers WHERE UserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM Feedbacks WHERE UserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("UPDATE RoomRequests SET ProcessedBy = NULL WHERE ProcessedBy = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM RoomRequests WHERE UserId = @Id", new { Id = id }, tran);
+        await conn.ExecuteAsync("DELETE FROM Users WHERE Id = @Id", new { Id = id }, tran);
+
+        tran.Commit();
+    }
 }

@@ -65,13 +65,20 @@ export const uploadApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
   },
+  lrc: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return apiClient.post<{ url: string; fileName: string }>('/api/upload/lrc', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const accountsApi = {
   getList: (params: { search?: string; status?: string; page?: number; pageSize?: number }) =>
     apiClient.get<PaginatedResult<User>>('/api/accounts', { params }),
   getById: (id: number) => apiClient.get<User>(`/api/accounts/${id}`),
-  create: (data: { username: string; password: string; displayName: string; phone?: string }) =>
+  create: (data: { username: string; password: string; displayName: string; phone?: string; avatarUrl?: string }) =>
     apiClient.post('/api/accounts', data),
   update: (id: number, data: { displayName?: string; phone?: string }) =>
     apiClient.put(`/api/accounts/${id}`, data),
@@ -79,6 +86,10 @@ export const accountsApi = {
     apiClient.put(`/api/accounts/${id}/toggle-status`),
   disable: (id: number) =>
     apiClient.post(`/api/accounts/${id}/disable`),
+  delete: (id: number) =>
+    apiClient.delete(`/api/accounts/${id}`),
+  changePassword: (id: number, newPassword: string) =>
+    apiClient.put(`/api/accounts/${id}/password`, { newPassword }),
 }
 
 export const settingsApi = {

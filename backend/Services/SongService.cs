@@ -35,11 +35,11 @@ public class SongService
 
         return new SongDetailResponse(
             song.Id, song.Title, song.Artist, song.Genre, song.Language, song.Duration, song.FileSize,
-            song.CoverUrl, song.MediaUrl, song.OriginalFileName, song.PlayCount, song.Status, song.CreatedAt, song.UpdatedAt,
+            song.CoverUrl, song.MediaUrl, song.LrcUrl, song.OriginalFileName, song.PlayCount, song.Status, song.CreatedAt, song.UpdatedAt,
             favoriteCount, ranking, Rating: 0, CommentCount: 0);
     }
 
-    public async Task<int> CreateAsync(string title, string artist, string genre, string? language, int duration, long? fileSize, string? coverUrl, string? mediaUrl, string? originalFileName)
+    public async Task<int> CreateAsync(string title, string artist, string genre, string? language, int duration, long? fileSize, string? coverUrl, string? mediaUrl, string? lrcUrl, string? originalFileName)
     {
         var song = new Song
         {
@@ -51,12 +51,13 @@ public class SongService
             FileSize = fileSize,
             CoverUrl = coverUrl,
             MediaUrl = mediaUrl,
+            LrcUrl = lrcUrl,
             OriginalFileName = originalFileName
         };
         return await _songRepo.CreateAsync(song);
     }
 
-    public async Task UpdateAsync(int id, string? title, string? artist, string? genre, string? language, int? duration, long? fileSize, string? coverUrl, string? mediaUrl, string? status, string? originalFileName)
+    public async Task UpdateAsync(int id, string? title, string? artist, string? genre, string? language, int? duration, long? fileSize, string? coverUrl, string? mediaUrl, string? lrcUrl, string? status, string? originalFileName)
     {
         var song = await _songRepo.GetByIdAsync(id);
         if (song == null) throw new Exception("Song not found");
@@ -69,6 +70,10 @@ public class SongService
         if (mediaUrl != null && mediaUrl != song.MediaUrl && !string.IsNullOrEmpty(song.MediaUrl))
             DeletePhysicalFile(song.MediaUrl);
 
+        // Delete old lrc file if being replaced
+        if (lrcUrl != null && lrcUrl != song.LrcUrl && !string.IsNullOrEmpty(song.LrcUrl))
+            DeletePhysicalFile(song.LrcUrl);
+
         if (title != null) song.Title = title;
         if (artist != null) song.Artist = artist;
         if (genre != null) song.Genre = genre;
@@ -77,6 +82,7 @@ public class SongService
         if (fileSize.HasValue) song.FileSize = fileSize.Value;
         if (coverUrl != null) song.CoverUrl = coverUrl;
         if (mediaUrl != null) song.MediaUrl = mediaUrl;
+        if (lrcUrl != null) song.LrcUrl = lrcUrl;
         if (originalFileName != null) song.OriginalFileName = originalFileName;
         if (status != null) song.Status = status;
 
@@ -92,6 +98,8 @@ public class SongService
                 DeletePhysicalFile(song.CoverUrl);
             if (!string.IsNullOrEmpty(song.MediaUrl))
                 DeletePhysicalFile(song.MediaUrl);
+            if (!string.IsNullOrEmpty(song.LrcUrl))
+                DeletePhysicalFile(song.LrcUrl);
         }
         await _songRepo.DeleteAsync(id);
     }

@@ -1,14 +1,5 @@
 import axios from 'axios'
 
-function isTokenExpired(token: string): boolean {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp * 1000 < Date.now()
-  } catch {
-    return true
-  }
-}
-
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://localhost:5001',
   timeout: 10000,
@@ -18,19 +9,13 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
-    if (isTokenExpired(token)) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      // 不跳转，让请求自然 401，由 response interceptor 处理重试登录
-    } else {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
 let isRefreshing = false
-let refreshPromise: Promise<void> | null = null
+let refreshPromise: Promise<boolean> | null = null
 
 apiClient.interceptors.response.use(
   (response) => response,
@@ -42,23 +27,33 @@ apiClient.interceptors.response.use(
 
       if (!isRefreshing) {
         isRefreshing = true
-        refreshPromise = apiClient.post('/api/auth/login', { username: 'admin', password: 'demo_hash_admin' })
-          .then((res) => {
-            localStorage.setItem('token', res.data.token)
-            localStorage.setItem('user', JSON.stringify(res.data.user))
+        const API_BASE = import.meta.env.VITE_API_BASE_URL || 'https://localhost:5001'
+        refreshPromise = fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password: 'demo_hash_admin' }),
+        })
+          .then(async (res) => {
+            if (!res.ok) throw new Error(`Login failed: ${res.status}`)
+            const data = await res.json()
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('user', JSON.stringify(data.user))
+            return true
           })
           .catch(() => {
             localStorage.removeItem('token')
             localStorage.removeItem('user')
+            window.location.href = '/login'
+            return false
           })
           .finally(() => {
             isRefreshing = false
           })
       }
 
-      await refreshPromise
-      const newToken = localStorage.getItem('token')
-      if (newToken) {
+      const ok = await refreshPromise
+      if (ok) {
+        const newToken = localStorage.getItem('token')
         originalRequest.headers.Authorization = `Bearer ${newToken}`
         return apiClient(originalRequest)
       }

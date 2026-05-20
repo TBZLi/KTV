@@ -26,7 +26,7 @@ public class AccountService
         return await _userRepo.GetByIdAsync(id);
     }
 
-    public async Task<int> CreateAsync(string username, string password, string displayName, string? phone)
+    public async Task<int> CreateAsync(string username, string password, string displayName, string? phone, string? avatarUrl)
     {
         var existing = await _userRepo.GetByUsernameAsync(username);
         if (existing != null) throw new Exception("用户名已存在");
@@ -37,7 +37,7 @@ public class AccountService
             PasswordHash = password,
             DisplayName = displayName,
             Phone = phone,
-            AvatarUrl = "/uploads/avatars/default.jpg",
+            AvatarUrl = avatarUrl ?? "/uploads/avatars/default.jpg",
             Role = "user",
             Status = "active"
         };
@@ -94,5 +94,26 @@ public class AccountService
         // Disable user
         user.Status = "disabled";
         await _userRepo.UpdateAsync(user);
+    }
+
+    public async Task ChangePasswordAsync(int id, string newPassword)
+    {
+        var user = await _userRepo.GetByIdAsync(id);
+        if (user == null) throw new Exception("用户不存在");
+
+        await _userRepo.UpdatePasswordAsync(id, newPassword);
+    }
+
+    public async Task DeleteAsync(int id)
+    {
+        var user = await _userRepo.GetByIdAsync(id);
+        if (user == null) throw new Exception("用户不存在");
+        if (user.Role == "admin") throw new Exception("管理员账号不可删除");
+
+        // Delete avatar file if not default
+        if (user.AvatarUrl != null && !user.AvatarUrl.Contains("default.jpg"))
+            DeletePhysicalFile(user.AvatarUrl);
+
+        await _userRepo.DeleteAsync(id);
     }
 }

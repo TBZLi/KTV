@@ -38,14 +38,14 @@ public class SongsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateSongRequest request)
     {
-        var id = await _songService.CreateAsync(request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl, request.OriginalFileName);
+        var id = await _songService.CreateAsync(request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl, request.LrcUrl, request.OriginalFileName);
         return Ok(new { id });
     }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateSongRequest request)
     {
-        await _songService.UpdateAsync(id, request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl, request.Status, request.OriginalFileName);
+        await _songService.UpdateAsync(id, request.Title, request.Artist, request.Genre, request.Language, request.Duration, request.FileSize, request.CoverUrl, request.MediaUrl, request.LrcUrl, request.Status, request.OriginalFileName);
         return Ok();
     }
 

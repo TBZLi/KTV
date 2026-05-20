@@ -43,3 +43,6 @@ npm-debug.log*
 
 # Temporary files
 临时图片/
+
+# Session logs
+sessions/

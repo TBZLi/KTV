@@ -13,11 +13,11 @@ builder.Services.AddSwaggerGen();
 // File upload size limits
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = 30 * 1024 * 1024; // 30MB max (music files)
+    options.MultipartBodyLengthLimit = 100 * 1024 * 1024; // 100MB max (music files)
 });
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.Limits.MaxRequestBodySize = 30 * 1024 * 1024;
+    options.Limits.MaxRequestBodySize = 100 * 1024 * 1024;
 });
 
 // CORS
@@ -240,7 +240,9 @@ if (app.Environment.IsDevelopment())
 }
 
 // Serve static files from wwwroot (for uploaded avatars, covers, music)
-app.UseStaticFiles();
+var contentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".flac"] = "audio/flac";
+app.UseStaticFiles(new StaticFileOptions { ContentTypeProvider = contentTypeProvider });
 
 app.UseCors("AllowFrontends");
 app.UseAuthentication();

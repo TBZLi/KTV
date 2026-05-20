@@ -56,9 +56,8 @@
               v-for="user in accounts"
               :key="user.id"
               class="hover:bg-surface-container transition-colors group"
-              :class="user.status === 'disabled' ? 'opacity-60' : ''"
             >
-              <td class="py-4 px-6">
+              <td class="py-4 px-6" :class="user.status === 'disabled' ? 'opacity-60' : ''">
                 <div class="flex items-center gap-3">
                   <img
                     v-if="user.avatarUrl"
@@ -108,22 +107,52 @@
               </td>
               <td class="py-4 px-6 text-on-surface-variant">{{ formatDate(user.createdAt) }}</td>
               <td class="py-4 px-6 text-right">
-                <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button @click="openEditDialog(user)" class="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors" title="编辑">
-                    <span class="material-symbols-outlined text-xl">edit</span>
-                  </button>
+                <div class="relative inline-block">
                   <button
-                    class="p-2 rounded-full transition-colors"
-                    :class="user.status === 'active'
-                      ? 'text-error hover:bg-error/10'
-                      : 'text-secondary-container hover:bg-secondary-container/10'"
-                    :title="user.status === 'active' ? '禁用' : '启用'"
-                    @click="handleToggleStatus(user.id)"
+                    @click.stop="toggleMenu(user.id)"
+                    class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors"
+                    title="操作"
                   >
-                    <span class="material-symbols-outlined text-xl">
-                      {{ user.status === 'active' ? 'block' : 'check_circle' }}
-                    </span>
+                    <span class="material-symbols-outlined text-xl">more_vert</span>
                   </button>
+                  <Transition name="menu-fade">
+                    <div
+                      v-if="openMenuId === user.id"
+                      class="absolute right-0 top-full mt-1 w-40 bg-surface-container-lowest rounded-lg shadow-xl ring-1 ring-outline-variant/20 z-[100] overflow-hidden"
+                    >
+                      <button
+                        @click="openEditDialog(user)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
+                      >
+                        <span class="material-symbols-outlined text-lg text-on-surface-variant">edit</span>
+                        编辑
+                      </button>
+                      <button
+                        @click="openPasswordDialog(user)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container transition-colors"
+                      >
+                        <span class="material-symbols-outlined text-lg text-on-surface-variant">lock_reset</span>
+                        更改密码
+                      </button>
+                      <button
+                        @click="handleToggleStatus(user.id)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-surface-container transition-colors"
+                        :class="user.status === 'active' ? 'text-error' : 'text-secondary-container'"
+                      >
+                        <span class="material-symbols-outlined text-lg">
+                          {{ user.status === 'active' ? 'block' : 'check_circle' }}
+                        </span>
+                        {{ user.status === 'active' ? '禁用' : '启用' }}
+                      </button>
+                      <button
+                        @click="handleDelete(user)"
+                        class="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-error hover:bg-error/10 transition-colors"
+                      >
+                        <span class="material-symbols-outlined text-lg">delete</span>
+                        删除用户
+                      </button>
+                    </div>
+                  </Transition>
                 </div>
               </td>
             </tr>
@@ -199,6 +228,22 @@
             <label class="block text-sm font-medium text-on-surface-variant mb-1">手机号</label>
             <input v-model="addForm.phone" class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
           </div>
+          <!-- Avatar Upload -->
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">头像（可选）</label>
+            <div class="flex items-center gap-3">
+              <div v-if="addAvatarPreview" class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
+                <img :src="addAvatarPreview" class="w-full h-full object-cover" />
+              </div>
+              <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
+                <span class="material-symbols-outlined text-on-surface-variant">image</span>
+                <span class="text-sm text-on-surface-variant truncate">
+                  {{ addAvatarFile ? addAvatarFile.name : '选择头像图片（JPG/PNG/WebP，最大 2MB）' }}
+                </span>
+                <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" @change="onAddAvatarSelected" />
+              </label>
+            </div>
+          </div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" @click="showAddDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
             <button type="submit" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
@@ -226,6 +271,22 @@
             <label class="block text-sm font-medium text-on-surface-variant mb-1">手机号</label>
             <input v-model="editForm.phone" class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
           </div>
+          <!-- Avatar Upload -->
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">头像</label>
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-surface-container-high">
+                <img :src="editAvatarPreview || (editingUser.avatarUrl ? BACKEND_BASE + editingUser.avatarUrl : BACKEND_BASE + DEFAULT_AVATAR)" class="w-full h-full object-cover" />
+              </div>
+              <label class="flex-1 flex items-center gap-3 px-4 py-3 bg-surface-container-high rounded-lg cursor-pointer hover:bg-surface-container-highest transition-colors">
+                <span class="material-symbols-outlined text-on-surface-variant">image</span>
+                <span class="text-sm text-on-surface-variant truncate">
+                  {{ editAvatarFile ? editAvatarFile.name : '更换头像（JPG/PNG/WebP，最大 2MB）' }}
+                </span>
+                <input type="file" accept=".jpg,.jpeg,.png,.gif,.webp" class="hidden" @change="onEditAvatarSelected" />
+              </label>
+            </div>
+          </div>
           <div class="flex justify-end gap-3 pt-2">
             <button type="button" @click="showEditDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
             <button type="submit" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
@@ -233,6 +294,50 @@
             </button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Change Password Dialog -->
+    <div v-if="showPasswordDialog && passwordUser" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showPasswordDialog = false">
+      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-lg p-8 space-y-6">
+        <h3 class="text-xl font-display font-bold text-on-surface">更改密码</h3>
+        <p class="text-sm text-on-surface-variant">为用户 <span class="font-medium text-on-surface">{{ passwordUser.username }}</span> 设置新密码</p>
+        <form @submit.prevent="handlePasswordChange" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">新密码</label>
+            <input v-model="passwordForm.newPassword" type="password" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-on-surface-variant mb-1">确认密码</label>
+            <input v-model="passwordForm.confirmPassword" type="password" required class="w-full px-4 py-3 bg-surface-container-high rounded-lg border-none text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+          </div>
+          <div class="flex justify-end gap-3 pt-2">
+            <button type="button" @click="showPasswordDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
+            <button type="submit" :disabled="saving" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors disabled:opacity-60">
+              {{ saving ? '修改中...' : '确认修改' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Avatar Cropper Dialog -->
+    <div v-if="showCropper && cropperSource" class="fixed inset-0 z-[200] flex items-center justify-center bg-black/60">
+      <div class="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+        <h3 class="text-lg font-display font-bold text-on-surface">裁剪头像</h3>
+        <div class="w-full aspect-square rounded-lg overflow-hidden bg-surface-container-high">
+          <Cropper
+            ref="cropperRef"
+            :src="cropperSource"
+            :stencil-props="{ aspectRatio: 1, handlers: {}, movable: true, resizable: true }"
+            :canvas="{ width: 256, height: 256 }"
+            class="h-full"
+          />
+        </div>
+        <div class="flex justify-end gap-3">
+          <button @click="onCropperCancel" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
+          <button @click="onCropperConfirm" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:bg-primary/90 transition-colors">确认</button>
+        </div>
       </div>
     </div>
 
@@ -248,6 +353,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { accountsApi, uploadApi } from '@/api'
+import { Cropper } from 'vue-advanced-cropper'
+import 'vue-advanced-cropper/dist/style.css'
 import type { User } from '@/types'
 import { formatUserStatus } from '@/utils/format'
 import { useToast } from '@/composables/useToast'
@@ -262,18 +369,32 @@ const pageSize = ref(10)
 const searchQuery = ref('')
 const selectedStatus = ref('')
 const saving = ref(false)
+const openMenuId = ref<number | null>(null)
 let searchTimer: ReturnType<typeof setTimeout>
 
 // Add dialog
 const showAddDialog = ref(false)
 const addForm = ref({ username: '', password: '', displayName: '', phone: '' })
+const addAvatarFile = ref<File | null>(null)
+const addAvatarPreview = ref<string | null>(null)
 
 // Edit dialog
 const showEditDialog = ref(false)
 const editingUser = ref<User | null>(null)
 const editForm = ref({ displayName: '', phone: '' })
-const newAvatarFile = ref<File | null>(null)
-const avatarPreview = ref<string | null>(null)
+const editAvatarFile = ref<File | null>(null)
+const editAvatarPreview = ref<string | null>(null)
+
+// Avatar cropper
+const showCropper = ref(false)
+const cropperSource = ref<string | null>(null)
+const cropperTarget = ref<'add' | 'edit'>('add')
+const cropperRef = ref<InstanceType<typeof Cropper> | null>(null)
+
+// Password dialog
+const showPasswordDialog = ref(false)
+const passwordUser = ref<User | null>(null)
+const passwordForm = ref({ newPassword: '', confirmPassword: '' })
 
 // Toast
 const { toastMsg, showToast } = useToast()
@@ -309,7 +430,8 @@ async function handleToggleStatus(id: number) {
   if (!user) return
 
   const action = user.status === 'active' ? '禁用' : '启用'
-  if (!confirm(`确认${action}该用户？`)) return
+  if (!confirm(`确认${action}该用户？`)) { closeMenu(); return }
+  closeMenu()
 
   try {
     if (user.status === 'active') {
@@ -323,15 +445,60 @@ async function handleToggleStatus(id: number) {
   }
 }
 
+function toggleMenu(id: number) {
+  openMenuId.value = openMenuId.value === id ? null : id
+}
+
+function closeMenu() {
+  openMenuId.value = null
+}
+
+function onClickOutside(e: MouseEvent) {
+  if (openMenuId.value !== null) {
+    const target = e.target as HTMLElement
+    if (!target.closest('.relative.inline-block')) {
+      closeMenu()
+    }
+  }
+}
+
+async function handleDelete(user: User) {
+  if (!confirm(`确认删除用户"${user.username}"？该操作不可恢复。`)) { closeMenu(); return }
+  closeMenu()
+
+  try {
+    await accountsApi.delete(user.id)
+    await fetchAccounts()
+  } catch (err: any) {
+    showToast(err.response?.data?.message || '删除失败')
+  }
+}
+
 function openAddDialog() {
   addForm.value = { username: '', password: '', displayName: '', phone: '' }
+  addAvatarFile.value = null
+  addAvatarPreview.value = null
   showAddDialog.value = true
+}
+
+function onAddAvatarSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  cropperSource.value = URL.createObjectURL(file)
+  cropperTarget.value = 'add'
+  showCropper.value = true
+  ;(e.target as HTMLInputElement).value = ''
 }
 
 async function handleAdd() {
   saving.value = true
   try {
-    await accountsApi.create(addForm.value)
+    let avatarUrl: string | undefined
+    if (addAvatarFile.value) {
+      const res = await uploadApi.avatar(addAvatarFile.value)
+      avatarUrl = res.data.url
+    }
+    await accountsApi.create({ ...addForm.value, avatarUrl })
     showAddDialog.value = false
     await fetchAccounts()
   } catch (err: any) {
@@ -344,9 +511,71 @@ async function handleAdd() {
 function openEditDialog(user: User) {
   editingUser.value = user
   editForm.value = { displayName: user.displayName || '', phone: '' }
-  newAvatarFile.value = null
-  avatarPreview.value = null
+  editAvatarFile.value = null
+  editAvatarPreview.value = null
   showEditDialog.value = true
+}
+
+function onEditAvatarSelected(e: Event) {
+  const file = (e.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  cropperSource.value = URL.createObjectURL(file)
+  cropperTarget.value = 'edit'
+  showCropper.value = true
+  ;(e.target as HTMLInputElement).value = ''
+}
+
+function onCropperConfirm() {
+  if (!cropperRef.value) return
+  const { canvas } = cropperRef.value.getResult()
+  if (!canvas) return
+  canvas.toBlob((blob: Blob | null) => {
+    if (!blob) return
+    const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
+    const url = URL.createObjectURL(blob)
+    if (cropperTarget.value === 'add') {
+      addAvatarFile.value = file
+      addAvatarPreview.value = url
+    } else {
+      editAvatarFile.value = file
+      editAvatarPreview.value = url
+    }
+    showCropper.value = false
+    cropperSource.value = null
+  }, 'image/jpeg', 0.9)
+}
+
+function onCropperCancel() {
+  showCropper.value = false
+  cropperSource.value = null
+}
+
+function openPasswordDialog(user: User) {
+  passwordUser.value = user
+  passwordForm.value = { newPassword: '', confirmPassword: '' }
+  showPasswordDialog.value = true
+  closeMenu()
+}
+
+async function handlePasswordChange() {
+  if (!passwordUser.value) return
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    showToast('两次输入的密码不一致')
+    return
+  }
+  if (passwordForm.value.newPassword.length < 3) {
+    showToast('密码长度不能少于 3 位')
+    return
+  }
+  saving.value = true
+  try {
+    await accountsApi.changePassword(passwordUser.value.id, passwordForm.value.newPassword)
+    showPasswordDialog.value = false
+  } catch (err: any) {
+    showToast(err.response?.data?.message || '修改失败')
+  } finally {
+    saving.value = false
+  }
 }
 
 async function handleEdit() {
@@ -354,8 +583,8 @@ async function handleEdit() {
   saving.value = true
   try {
     const updateData: Record<string, any> = { ...editForm.value }
-    if (newAvatarFile.value) {
-      const res = await uploadApi.avatar(newAvatarFile.value)
+    if (editAvatarFile.value) {
+      const res = await uploadApi.avatar(editAvatarFile.value)
       updateData.avatarUrl = res.data.url
     }
     await accountsApi.update(editingUser.value.id, updateData)
@@ -371,10 +600,12 @@ let pollTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
   await fetchAccounts()
   pollTimer = setInterval(fetchAccounts, 3000)
+  document.addEventListener('click', onClickOutside)
 })
 
 onUnmounted(() => {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
+  document.removeEventListener('click', onClickOutside)
 })
 
 watch([currentPage, selectedStatus], () => {
@@ -391,5 +622,14 @@ watch([currentPage, selectedStatus], () => {
 .toast-leave-to {
   opacity: 0;
   transform: translate(-50%, -20px);
+}
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

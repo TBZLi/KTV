@@ -61,6 +61,7 @@ export interface Song {
   fileSize: number | null
   coverUrl: string | null
   mediaUrl: string | null
+  lrcUrl: string | null
   originalFileName: string | null
   playCount: number
   status: 'active' | 'inactive'
@@ -78,6 +79,7 @@ export interface SongDetail {
   fileSize: number | null
   coverUrl: string | null
   mediaUrl: string | null
+  lrcUrl: string | null
   originalFileName: string | null
   playCount: number
   status: string
