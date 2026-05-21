@@ -8,6 +8,9 @@ export interface PlayerTrack {
   coverUrl: string
   mediaUrl: string
   lrcUrl: string
+  orderedByUserId: number
+  orderedByName: string
+  queueItemId: number
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
@@ -23,7 +26,11 @@ export const usePlayerStore = defineStore('player', () => {
   const duration = ref(0)
   const volume = ref(80)
   const playMode = ref<'off' | 'repeat-all' | 'repeat-one' | 'shuffle'>('off')
-  const skipNextQueueUpdate = ref(false)
+
+  // Sync mode state
+  const syncMode = ref(false)
+  const currentUserId = ref<number | null>(null)
+  const currentQueueItemId = ref<number | null>(null)
 
   const currentTrack = computed(() =>
     currentIndex.value >= 0 && currentIndex.value < queue.value.length
@@ -32,6 +39,11 @@ export const usePlayerStore = defineStore('player', () => {
   )
 
   const hasTrack = computed(() => currentTrack.value !== null)
+
+  const songOwnerUserId = computed(() => currentTrack.value?.orderedByUserId ?? null)
+  const isSongOwner = computed(() =>
+    currentUserId.value != null && songOwnerUserId.value === currentUserId.value
+  )
 
   // Sync audio events
   audio.addEventListener('timeupdate', () => {
@@ -47,32 +59,31 @@ export const usePlayerStore = defineStore('player', () => {
     isPlaying.value = false
   })
   audio.addEventListener('ended', () => {
+    // In sync mode: server handles auto-advance
+    if (syncMode.value) { audio.pause(); return }
+    // Local mode
     if (playMode.value === 'repeat-one') {
-      audio.currentTime = 0
-      play()
+      audio.currentTime = 0; audio.play().catch(() => {})
     } else {
-      playNext()
+      playNextLocal()
     }
   })
   audio.addEventListener('error', () => {
-    // Audio file unavailable, skip to next (but don't cascade if track has no media)
     if (currentTrack.value?.mediaUrl) {
-      playNext()
+      if (syncMode.value) { audio.pause() } else { playNextLocal() }
     }
   })
 
-  // Set initial volume
   audio.volume = volume.value / 100
+
+  // ── Local audio primitives ──
 
   function _loadTrack(index: number) {
     const track = queue.value[index]
     if (!track) return
     currentIndex.value = index
     if (!track.mediaUrl) {
-      audio.pause()
-      audio.src = ''
-      isPlaying.value = false
-      return
+      audio.pause(); audio.src = ''; isPlaying.value = false; return
     }
     audio.src = API_BASE + track.mediaUrl
     audio.load()
@@ -87,14 +98,6 @@ export const usePlayerStore = defineStore('player', () => {
     audio.pause()
   }
 
-  function togglePlay() {
-    if (isPlaying.value) {
-      pause()
-    } else {
-      play()
-    }
-  }
-
   function seek(time: number) {
     audio.currentTime = time
     currentTime.value = time
@@ -105,85 +108,74 @@ export const usePlayerStore = defineStore('player', () => {
     audio.volume = v / 100
   }
 
-  function playNext() {
+  // ── Local-only playback (non-sync mode) ──
+
+  function playNextLocal() {
     if (queue.value.length <= 1) {
       if (playMode.value === 'repeat-all' && queue.value.length === 1) {
-        _loadTrack(0)
-        play()
-        return
+        _loadTrack(0); play(); return
       }
-      // Queue ended
-      currentIndex.value = -1
-      isPlaying.value = false
-      audio.src = ''
+      queue.value = []; currentIndex.value = -1; isPlaying.value = false; audio.src = ''
       return
     }
-
     if (playMode.value === 'shuffle') {
       let next: number
       do { next = Math.floor(Math.random() * queue.value.length) } while (next === 0)
       const [track] = queue.value.splice(next, 1)
-      queue.value.unshift(track)
+      queue.value.shift(); queue.value.unshift(track)
     } else {
-      // Move next song to index 0, current goes to end of rotation
-      const [track] = queue.value.splice(1, 1)
-      queue.value.unshift(track)
+      queue.value.shift()
     }
-    skipNextQueueUpdate.value = true
-    _loadTrack(0)
-    play()
+    _loadTrack(0); play()
   }
 
-  function playPrev() {
-    // Current song is always at index 0 — restart it
-    if (queue.value.length > 0) {
-      seek(0)
+  // ── Sync mode: apply remote state from server ──
+
+  function applyRemoteState(state: any) {
+    if (!state.hasTrack) {
+      if (hasTrack.value) {
+        audio.pause(); audio.src = ''; currentIndex.value = -1; currentQueueItemId.value = null
+      }
+      return
+    }
+
+    // Map server songId to local queue index
+    const localIndex = queue.value.findIndex(t => t.songId === state.songId)
+
+    // Song changed
+    if (currentQueueItemId.value !== state.currentQueueItemId) {
+      currentQueueItemId.value = state.currentQueueItemId
+      if (localIndex >= 0) _loadTrack(localIndex)
+    }
+
+    // Play/pause sync
+    if (state.isPlaying && audio.paused) play()
+    else if (!state.isPlaying && !audio.paused) pause()
+
+    // Time sync (drift > 2s when playing, > 0.5s when paused)
+    if (state.isPlaying) {
+      if (Math.abs(audio.currentTime - state.currentTime) > 2) seek(state.currentTime)
+    } else {
+      if (Math.abs(audio.currentTime - state.currentTime) > 0.5) seek(state.currentTime)
+    }
+
+    // Play mode sync
+    if (state.playMode && playMode.value !== state.playMode) {
+      playMode.value = state.playMode
     }
   }
 
-  /**
-   * Add a track to the queue. If the queue was empty, auto-play it.
-   */
-  function addToQueue(track: PlayerTrack) {
-    // Check if already in queue
-    const existingIndex = queue.value.findIndex(t => t.songId === track.songId)
-    if (existingIndex >= 0) return
+  // ── Queue management ──
 
-    queue.value.push(track)
-    if (queue.value.length === 1) {
-      _loadTrack(0)
-      play()
-    }
-  }
-
-  /**
-   * Load a full queue (from server). Auto-play the first track if nothing is playing.
-   */
   function loadQueue(tracks: PlayerTrack[]) {
-    // Skip next update after a local reorder (drag-and-drop)
-    if (skipNextQueueUpdate.value) {
-      skipNextQueueUpdate.value = false
-      return
-    }
-    // Skip update if queue hasn't changed (prevents re-render flash on poll)
-    if (tracks.length === queue.value.length && tracks.every((t, i) => t.songId === queue.value[i].songId && t.coverUrl === queue.value[i].coverUrl && t.mediaUrl === queue.value[i].mediaUrl)) {
-      return
-    }
-
-    const wasPlaying = isPlaying.value
-    const prevIndex = currentIndex.value
     const currentSongId = currentTrack.value?.songId
-
     queue.value = tracks
 
     if (tracks.length === 0) {
-      currentIndex.value = -1
-      audio.src = ''
-      isPlaying.value = false
-      return
+      currentIndex.value = -1; audio.src = ''; isPlaying.value = false; return
     }
 
-    // If we were playing a song that's still in the queue, keep it at index 0
+    // Keep current song at front if still in queue
     if (currentSongId != null) {
       const newIndex = tracks.findIndex(t => t.songId === currentSongId)
       if (newIndex >= 0 && newIndex !== 0) {
@@ -191,40 +183,17 @@ export const usePlayerStore = defineStore('player', () => {
         queue.value.unshift(track)
       }
       currentIndex.value = 0
-      return
-    }
-
-    // Queue ended (playNext set currentIndex to -1) — stay stopped, don't restart from track 0
-    if (prevIndex === -1 && !wasPlaying) return
-
-    // If nothing was playing yet, load first track but don't auto-play
-    if (!wasPlaying) {
-      _loadTrack(0)
-      audio.pause()
-    } else {
-      _loadTrack(0)
-      play()
     }
   }
 
-  function playTrackBySongId(songId: number) {
-    const index = queue.value.findIndex(t => t.songId === songId)
-    if (index < 0) return
-
-    if (index !== 0) {
-      // Move clicked song to top (position 0)
-      const [track] = queue.value.splice(index, 1)
-      queue.value.unshift(track)
-      skipNextQueueUpdate.value = true
-    }
-    _loadTrack(0)
-    play()
+  function addToQueue(track: PlayerTrack) {
+    if (queue.value.some(t => t.songId === track.songId)) return
+    queue.value.push(track)
   }
 
-  function togglePlayMode() {
-    const modes: Array<'off' | 'repeat-all' | 'repeat-one' | 'shuffle'> = ['off', 'repeat-all', 'repeat-one', 'shuffle']
-    const idx = modes.indexOf(playMode.value)
-    playMode.value = modes[(idx + 1) % modes.length]
+  function setSyncMode(enabled: boolean, userId: number) {
+    syncMode.value = enabled
+    currentUserId.value = userId
   }
 
   return {
@@ -237,17 +206,16 @@ export const usePlayerStore = defineStore('player', () => {
     playMode,
     currentTrack,
     hasTrack,
+    songOwnerUserId,
+    isSongOwner,
+    currentQueueItemId,
     play,
     pause,
-    togglePlay,
     seek,
     setVolume,
-    playNext,
-    playPrev,
-    addToQueue,
     loadQueue,
-    playTrackBySongId,
-    togglePlayMode,
-    skipNextQueueUpdate,
+    addToQueue,
+    setSyncMode,
+    applyRemoteState,
   }
 })

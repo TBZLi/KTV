@@ -59,6 +59,9 @@ builder.Services.AddScoped<SongService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<FeedbackService>();
 
+// Singleton services (in-memory state)
+builder.Services.AddSingleton<PlaybackStateService>();
+
 // SignalR
 builder.Services.AddSignalR();
 

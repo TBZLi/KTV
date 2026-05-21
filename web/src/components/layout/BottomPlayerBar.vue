@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { usePlayerStore } from '@/stores/player'
-import { favoritesApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { favoritesApi, chatApi, playbackApi } from '@/api'
 import { parseLrc, findCurrentLine, type LyricLine } from '@/utils/lrcParser'
 
 const player = usePlayerStore()
+const auth = useAuthStore()
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const showLyrics = ref(false)
@@ -37,7 +39,54 @@ watch(currentLine, async (idx) => {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
 })
 
-function seekToLine(time: number) { player.seek(time) }
+function seekToLine(time: number) {
+  if (!player.isSongOwner) return
+  apiSeek(time)
+}
+
+// --- Playback sync controls ---
+async function apiTogglePlay() {
+  if (!player.hasTrack) return
+  if (player.isPlaying) {
+    await playbackApi.pause()
+  } else {
+    await playbackApi.resume()
+  }
+}
+async function apiPlayNext() {
+  await playbackApi.next()
+}
+async function apiPlayPrev() {
+  await playbackApi.prev()
+}
+async function apiTogglePlayMode() {
+  const modes: Array<'off' | 'repeat-all' | 'repeat-one' | 'shuffle'> = ['off', 'repeat-all', 'repeat-one', 'shuffle']
+  const idx = modes.indexOf(player.playMode)
+  const next = modes[(idx + 1) % modes.length]
+  await playbackApi.setMode(next)
+}
+async function apiSeek(position: number) {
+  await playbackApi.seek(position)
+}
+
+// --- Wheel handler for lyrics overlay ---
+function onOverlayWheel(e: WheelEvent) {
+  const el = e.target as HTMLElement
+  // Find nearest scrollable ancestor
+  let cur: HTMLElement | null = el
+  while (cur) {
+    const style = window.getComputedStyle(cur)
+    const oy = style.overflowY
+    if ((oy === 'auto' || oy === 'scroll') && cur.scrollHeight > cur.clientHeight) {
+      // Let this element handle scrolling naturally
+      return
+    }
+    cur = cur.parentElement
+    if (cur?.classList.contains('fixed')) break // stop at overlay root
+  }
+  // No scrollable ancestor found — block scroll from reaching page behind
+  e.preventDefault()
+}
 
 // --- Funnel style ---
 function lineStyle(i: number) {
@@ -103,6 +152,35 @@ async function toggleFavorite(songId: number) {
 }
 onMounted(loadFavorites)
 
+// --- Chat ---
+const chatMessages = ref<{ nickname: string; message: string; timestamp: string }[]>([])
+const chatInput = ref('')
+const chatContainer = ref<HTMLElement | null>(null)
+let chatPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadChatMessages() {
+  if (!auth.currentRoomId) return
+  try {
+    const { data } = await chatApi.getMessages(auth.currentRoomId)
+    const mapped = data.map(m => ({ nickname: m.nickname, message: m.message, timestamp: m.timestamp }))
+    if (mapped.length === chatMessages.value.length && mapped.every((m, i) => m.message === chatMessages.value[i].message && m.timestamp === chatMessages.value[i].timestamp)) return
+    chatMessages.value = mapped
+    nextTick(() => { if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight })
+  } catch { /* ignore */ }
+}
+
+async function sendChatMessage() {
+  if (!chatInput.value.trim() || !auth.currentRoomId) return
+  try {
+    await chatApi.sendMessage(auth.currentRoomId, chatInput.value.trim())
+    chatInput.value = ''
+    await loadChatMessages()
+  } catch { /* ignore */ }
+}
+
+onMounted(() => { chatPollTimer = setInterval(loadChatMessages, 2000) })
+onUnmounted(() => { if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null } })
+
 // --- Drag reorder ---
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
@@ -124,7 +202,6 @@ function onDrop(i: number, e: DragEvent) {
   const [item] = player.queue.splice(from, 1)
   player.queue.splice(i, 0, item)
   player.currentIndex = 0
-  player.skipNextQueueUpdate = true
   dragIndex.value = null; dragOverIndex.value = null
 }
 function onDragEnd() { dragIndex.value = null; dragOverIndex.value = null }
@@ -158,21 +235,38 @@ function formatTime(seconds: number): string {
 }
 
 function onProgressClick(e: MouseEvent) {
-  if (!player.hasTrack) return
+  if (!player.hasTrack || !player.isSongOwner) return
   const bar = e.currentTarget as HTMLElement
   const rect = bar.getBoundingClientRect()
-  player.seek(((e.clientX - rect.left) / rect.width) * player.duration)
+  const pos = ((e.clientX - rect.left) / rect.width) * player.duration
+  apiSeek(pos)
 }
 
 function onProgressMousedown(e: MouseEvent) {
-  if (!player.hasTrack) return
+  if (!player.hasTrack || !player.isSongOwner) return
   isDraggingProgress.value = true
   const bar = e.currentTarget as HTMLElement
+  let lastSeekTime = 0
   const onMove = (ev: MouseEvent) => {
     const rect = bar.getBoundingClientRect()
-    player.seek(Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)) * player.duration)
+    const pos = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)) * player.duration
+    player.seek(pos) // Optimistic local update
+    // Throttle API calls to max 2/sec
+    const now = Date.now()
+    if (now - lastSeekTime > 500) {
+      lastSeekTime = now
+      apiSeek(pos)
+    }
   }
-  const onUp = () => { isDraggingProgress.value = false; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  const onUp = () => {
+    isDraggingProgress.value = false
+    // Final seek on release
+    const rect = bar.getBoundingClientRect()
+    // Use last known position from the move handler
+    apiSeek(player.currentTime)
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+  }
   window.addEventListener('mousemove', onMove)
   window.addEventListener('mouseup', onUp)
 }
@@ -212,15 +306,17 @@ const coverSrc = computed(() =>
     <div class="flex-1 min-w-0">
       <p v-if="player.hasTrack" class="text-sm font-bold truncate">
         {{ player.currentTrack.title }} <span class="font-normal text-slate-500">- {{ player.currentTrack.artist }}</span>
+        <span v-if="player.currentTrack.orderedByName" class="ml-1 text-[10px] font-normal text-primary/60">{{ player.currentTrack.orderedByName }} 的歌</span>
       </p>
       <p v-else class="text-sm text-slate-400 truncate">未在播放</p>
       <div
-        class="mt-1.5 h-1 w-full bg-slate-200/60 rounded-full cursor-pointer group"
-        @click.stop="onProgressClick"
-        @mousedown.stop="onProgressMousedown"
+        class="mt-1.5 h-1 w-full bg-slate-200/60 rounded-full group"
+        :class="player.isSongOwner ? 'cursor-pointer' : 'cursor-default'"
+        @click.stop="player.isSongOwner && onProgressClick()"
+        @mousedown.stop="player.isSongOwner && onProgressMousedown()"
       >
         <div class="h-full bg-gradient-to-r from-primary to-secondary rounded-full relative transition-all" :style="{ width: progressPercent + '%' }">
-          <div class="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"></div>
+          <div v-if="player.isSongOwner" class="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"></div>
         </div>
       </div>
     </div>
@@ -228,25 +324,37 @@ const coverSrc = computed(() =>
     <!-- Controls -->
     <div class="flex items-center gap-1 shrink-0">
       <button
-        class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-on-surface transition-colors rounded-full hover:bg-slate-100 press-scale"
-        :class="{ 'opacity-30 pointer-events-none': !player.hasTrack || player.currentIndex <= 0 }"
-        @click="player.playPrev()"
+        class="w-8 h-8 flex items-center justify-center transition-colors rounded-full press-scale"
+        :class="[
+          player.isSongOwner ? 'text-slate-400 hover:text-on-surface hover:bg-slate-100' : 'text-slate-200 cursor-not-allowed',
+          (!player.hasTrack || player.currentIndex <= 0) ? 'opacity-30 pointer-events-none' : ''
+        ]"
+        :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
+        @click="player.isSongOwner && apiPlayPrev()"
       >
         <span class="material-symbols-outlined text-xl">skip_previous</span>
       </button>
       <button
-        class="w-10 h-10 flex items-center justify-center text-primary hover:scale-110 transition-transform press-scale"
-        :class="{ 'opacity-30 pointer-events-none': !player.hasTrack }"
-        @click="player.togglePlay()"
+        class="w-10 h-10 flex items-center justify-center hover:scale-110 transition-transform press-scale"
+        :class="[
+          player.isSongOwner ? 'text-primary' : 'text-slate-300 cursor-not-allowed',
+          !player.hasTrack ? 'opacity-30 pointer-events-none' : ''
+        ]"
+        :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
+        @click="player.isSongOwner && apiTogglePlay()"
       >
         <span class="material-symbols-outlined text-3xl" :style="{ fontVariationSettings: `'FILL' ${player.isPlaying ? 1 : 0}` }">
           {{ player.isPlaying ? 'pause_circle' : 'play_circle' }}
         </span>
       </button>
       <button
-        class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-on-surface transition-colors rounded-full hover:bg-slate-100 press-scale"
-        :class="{ 'opacity-30 pointer-events-none': !player.hasTrack || player.currentIndex >= player.queue.length - 1 }"
-        @click="player.playNext()"
+        class="w-8 h-8 flex items-center justify-center transition-colors rounded-full press-scale"
+        :class="[
+          player.isSongOwner ? 'text-slate-400 hover:text-on-surface hover:bg-slate-100' : 'text-slate-200 cursor-not-allowed',
+          (!player.hasTrack || player.currentIndex >= player.queue.length - 1) ? 'opacity-30 pointer-events-none' : ''
+        ]"
+        :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
+        @click="player.isSongOwner && apiPlayNext()"
       >
         <span class="material-symbols-outlined text-xl">skip_next</span>
       </button>
@@ -258,7 +366,7 @@ const coverSrc = computed(() =>
 
   <!-- ====== 歌词页全屏覆盖 ====== -->
   <Transition name="lyrics-slide">
-    <div v-if="showLyrics" class="fixed inset-0 z-[60] flex">
+    <div v-if="showLyrics" class="fixed inset-0 z-[60] flex" @wheel="onOverlayWheel">
       <!-- 封面背景 + 毛玻璃 -->
       <img
         :src="coverSrc"
@@ -287,6 +395,7 @@ const coverSrc = computed(() =>
         <div class="text-center">
           <h2 class="text-2xl font-bold text-white">{{ player.currentTrack?.title ?? '未在播放' }}</h2>
           <p class="text-white/50 mt-1">{{ player.currentTrack?.artist }}</p>
+          <p v-if="player.currentTrack?.orderedByName" class="text-[#71fcfe]/50 text-xs mt-1">{{ player.currentTrack.orderedByName }} 的歌</p>
         </div>
 
         <!-- 进度条 -->
@@ -296,9 +405,10 @@ const coverSrc = computed(() =>
             <span>{{ formatTime(player.duration) }}</span>
           </div>
           <div
-            class="h-1.5 w-full bg-white/20 rounded-full cursor-pointer group"
-            @click="onProgressClick"
-            @mousedown="onProgressMousedown"
+            class="h-1.5 w-full bg-white/20 rounded-full group"
+            :class="player.isSongOwner ? 'cursor-pointer' : 'cursor-default'"
+            @click="player.isSongOwner && onProgressClick()"
+            @mousedown="player.isSongOwner && onProgressMousedown()"
           >
             <div class="h-full bg-white rounded-r-full relative transition-all" :style="{ width: progressPercent + '%' }">
               <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity -mr-1"></div>
@@ -309,20 +419,32 @@ const coverSrc = computed(() =>
         <!-- 播放控制 + 模式 + 音量 -->
         <div class="flex items-center justify-center gap-5 mt-4">
           <!-- 播放模式 -->
-          <button class="w-9 h-9 flex items-center justify-center text-white/40 hover:text-white/80 transition-colors press-scale relative group"
-            @click="player.togglePlayMode()">
+          <button class="w-9 h-9 flex items-center justify-center transition-colors press-scale relative group"
+            :class="player.isSongOwner ? 'text-white/40 hover:text-white/80' : 'text-white/15 cursor-not-allowed'"
+            :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
+            @click="player.isSongOwner && apiTogglePlayMode()">
             <span class="material-symbols-outlined text-xl" :class="player.playMode !== 'off' ? 'text-[#71fcfe]' : ''">{{ playModeIcon }}</span>
             <span class="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-white/60 bg-black/60 rounded px-2 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">{{ playModeLabel }}</span>
           </button>
 
-          <button class="text-white/60 hover:text-white press-scale" @click="player.playPrev()">
+          <button
+            :class="player.isSongOwner ? 'text-white/60 hover:text-white' : 'text-white/15 cursor-not-allowed'"
+            class="press-scale"
+            :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
+            @click="player.isSongOwner && apiPlayPrev()">
             <span class="material-symbols-outlined text-3xl">skip_previous</span>
           </button>
           <button class="w-16 h-16 rounded-full bg-white text-slate-900 flex items-center justify-center hover:scale-105 transition-transform shadow-lg press-scale"
-            @click="player.togglePlay()">
+            :class="{ 'opacity-40': !player.isSongOwner }"
+            :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
+            @click="player.isSongOwner && apiTogglePlay()">
             <span class="material-symbols-outlined text-4xl">{{ player.isPlaying ? 'pause' : 'play_arrow' }}</span>
           </button>
-          <button class="text-white/60 hover:text-white press-scale" @click="player.playNext()">
+          <button
+            :class="player.isSongOwner ? 'text-white/60 hover:text-white' : 'text-white/15 cursor-not-allowed'"
+            class="press-scale"
+            :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
+            @click="player.isSongOwner && apiPlayNext()">
             <span class="material-symbols-outlined text-3xl">skip_next</span>
           </button>
 
@@ -375,75 +497,90 @@ const coverSrc = computed(() =>
           </div>
         </div>
 
-        <!-- 播放列表侧栏 -->
+        <!-- 右侧边栏：聊天 + 播放列表 -->
         <div class="w-72 border-l border-white/10 flex flex-col">
-          <div class="px-5 py-4 flex items-center gap-2">
-            <span class="material-symbols-outlined text-white/50 text-lg">queue_music</span>
-            <p class="text-white/70 text-sm font-bold">播放列表</p>
-            <span class="text-white/30 text-xs ml-1">{{ player.queue.length }} 首</span>
-          </div>
-          <div ref="playlistContainer" class="flex-1 overflow-y-auto scrollbar-hide px-3 pb-4">
-            <!-- 正在播放 (index 0, pinned) -->
-            <div v-if="player.queue.length > 0" class="px-3 py-3 rounded-xl bg-white/10 mb-2 border border-[#71fcfe]/20">
-              <div class="flex items-center gap-3">
-                <span class="material-symbols-outlined text-[#71fcfe] text-lg flex-shrink-0">
-                  {{ player.isPlaying ? 'equalizer' : 'play_circle' }}
-                </span>
-                <img
-                  :src="player.queue[0].coverUrl ? (API_BASE + player.queue[0].coverUrl) : API_BASE + '/uploads/covers/default.jpg'"
-                  class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                />
-                <div class="min-w-0 flex-1">
-                  <p class="text-[10px] text-[#71fcfe]/70 font-semibold mb-0.5">正在播放</p>
-                  <p class="text-sm text-white font-bold truncate">{{ player.queue[0].title }}</p>
-                  <p class="text-xs text-white/50 truncate">{{ player.queue[0].artist }}</p>
+          <!-- 聊天上半 -->
+          <div class="flex-1 flex flex-col border-b border-white/10 min-h-0">
+            <div class="px-5 py-3 flex items-center gap-2 flex-shrink-0">
+              <span class="material-symbols-outlined text-white/50 text-lg">chat</span>
+              <p class="text-white/70 text-sm font-bold">聊天</p>
+            </div>
+            <div ref="chatContainer" class="flex-1 overflow-y-auto scrollbar-hide px-4 pb-3 space-y-2 min-h-0">
+              <div v-for="(msg, i) in chatMessages" :key="i" class="text-xs">
+                <div v-if="msg.nickname === '系统'" class="text-center text-white/20 py-0.5">
+                  {{ msg.message }}
+                </div>
+                <div v-else>
+                  <span class="text-[#71fcfe]/70 font-semibold">{{ msg.nickname }}</span>
+                  <span class="text-white/20 ml-1">{{ msg.timestamp }}</span>
+                  <p class="text-white/60 mt-0.5">{{ msg.message }}</p>
                 </div>
               </div>
+              <div v-if="chatMessages.length === 0" class="text-center text-white/15 text-xs py-4">暂无消息</div>
             </div>
-
-            <!-- 接下来 (index 1+) -->
-            <div v-if="player.queue.length > 1" class="px-1 py-2 flex items-center gap-2">
-              <span class="text-[10px] text-white/30 font-medium">接下来</span>
-            </div>
-            <div v-for="(track, i) in player.queue.slice(1)" :key="track.songId"
-              :data-playlist="i + 1"
-              class="flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-1 group"
-              :class="[
-                dragOverIndex === i + 1 ? 'border-t-2 border-[#71fcfe]' : '',
-                dragIndex === i + 1 ? 'opacity-40' : ''
-              ]"
-              draggable="true"
-              @dragstart="onDragStart(i + 1, $event)"
-              @dragover="onDragOver(i + 1, $event)"
-              @dragleave="onDragLeave"
-              @drop="onDrop(i + 1, $event)"
-              @dragend="onDragEnd"
-              @click="player.playTrackBySongId(track.songId)"
-            >
-              <span class="material-symbols-outlined text-white/20 text-sm cursor-grab active:cursor-grabbing flex-shrink-0">drag_indicator</span>
-              <img
-                :src="track.coverUrl ? (API_BASE + track.coverUrl) : API_BASE + '/uploads/covers/default.jpg'"
-                class="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+            <form @submit.prevent="sendChatMessage" class="p-3 flex gap-2 flex-shrink-0">
+              <input
+                v-model="chatInput"
+                type="text"
+                placeholder="发消息..."
+                maxlength="200"
+                class="flex-1 bg-white/10 border-none rounded-lg py-2 px-3 text-xs text-white placeholder:text-white/25 focus:outline-none focus:ring-1 focus:ring-[#71fcfe]/30"
               />
-              <div class="min-w-0 flex-1">
-                <p class="text-sm truncate text-white/70">
-                  {{ track.title }}
-                </p>
-                <p class="text-xs truncate text-white/30">
-                  {{ track.artist }}
-                </p>
-              </div>
-              <button
-                class="flex-shrink-0 press-scale opacity-0 group-hover:opacity-100 transition-opacity"
-                @click.stop="toggleFavorite(track.songId)"
-              >
-                <span class="material-symbols-outlined text-lg transition-colors"
-                  :class="favoriteIds.has(track.songId) ? 'text-red-400' : 'text-white/30 hover:text-white/60'"
-                  :style="{ fontVariationSettings: `'FILL' ${favoriteIds.has(track.songId) ? 1 : 0}` }"
-                >favorite</span>
+              <button type="submit" class="px-3 py-2 bg-[#71fcfe]/20 text-[#71fcfe] rounded-lg text-xs hover:bg-[#71fcfe]/30 transition-colors">
+                <span class="material-symbols-outlined text-sm">send</span>
               </button>
+            </form>
+          </div>
+
+          <!-- 播放列表下半 -->
+          <div class="flex-1 flex flex-col min-h-0">
+            <div class="px-5 py-3 flex items-center gap-2 flex-shrink-0">
+              <span class="material-symbols-outlined text-white/50 text-lg">queue_music</span>
+              <p class="text-white/70 text-sm font-bold">播放列表</p>
+              <span class="text-white/30 text-xs ml-1">{{ player.queue.length }} 首</span>
             </div>
-            <p v-if="player.queue.length === 0" class="text-center text-white/20 text-sm py-10">播放列表为空</p>
+            <div ref="playlistContainer" class="flex-1 overflow-y-auto scrollbar-hide px-3 pb-4 min-h-0">
+              <div v-for="(track, i) in player.queue" :key="track.songId"
+                :data-playlist="i"
+                class="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all mb-1 group"
+                :class="[
+                  i === player.currentIndex ? 'bg-white/10' : 'hover:bg-white/5',
+                  dragOverIndex === i ? 'border-t-2 border-[#71fcfe]' : '',
+                  dragIndex === i ? 'opacity-40' : ''
+                ]"
+                draggable="true"
+                @dragstart="onDragStart(i, $event)"
+                @dragover="onDragOver(i, $event)"
+                @dragleave="onDragLeave"
+                @drop="onDrop(i, $event)"
+                @dragend="onDragEnd"
+                @click="track.queueItemId && playbackApi.play(track.queueItemId)"
+              >
+                <span class="material-symbols-outlined text-white/15 text-xs cursor-grab active:cursor-grabbing flex-shrink-0">drag_indicator</span>
+                <img
+                  :src="track.coverUrl ? (API_BASE + track.coverUrl) : API_BASE + '/uploads/covers/default.jpg'"
+                  class="w-8 h-8 rounded object-cover flex-shrink-0"
+                />
+                <div class="min-w-0 flex-1">
+                  <p class="text-xs truncate" :class="i === player.currentIndex ? 'text-white font-bold' : 'text-white/60'">
+                    {{ track.title }}
+                  </p>
+                  <p class="text-[10px] truncate" :class="i === player.currentIndex ? 'text-white/50' : 'text-white/25'">
+                    {{ track.artist }}
+                  </p>
+                </div>
+                <button
+                  class="flex-shrink-0 press-scale opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click.stop="toggleFavorite(track.songId)"
+                >
+                  <span class="material-symbols-outlined text-sm transition-colors"
+                    :class="favoriteIds.has(track.songId) ? 'text-red-400' : 'text-white/20 hover:text-white/50'"
+                    :style="{ fontVariationSettings: `'FILL' ${favoriteIds.has(track.songId) ? 1 : 0}` }"
+                  >favorite</span>
+                </button>
+              </div>
+              <p v-if="player.queue.length === 0" class="text-center text-white/15 text-xs py-6">播放列表为空</p>
+            </div>
           </div>
         </div>
       </div>

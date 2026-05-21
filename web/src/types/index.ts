@@ -32,9 +32,27 @@ export interface PlayQueueItem {
   coverUrl: string
   mediaUrl: string
   lrcUrl: string | null
+  orderedByUserId: number
   orderedBy: string
   sortOrder: number
   createdAt: string
+}
+
+export interface PlaybackState {
+  hasTrack: boolean
+  currentQueueItemId: number
+  songId: number
+  title: string
+  artist: string
+  coverUrl: string
+  mediaUrl: string
+  lrcUrl: string
+  orderedByUserId: number
+  orderedByName: string
+  isPlaying: boolean
+  currentTime: number
+  duration: number
+  playMode: 'off' | 'repeat-all' | 'repeat-one' | 'shuffle'
 }
 
 export interface Favorite {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { roomApi, chatApi, favoritesApi } from '@/api'
+import { roomApi, chatApi, favoritesApi, playbackApi } from '@/api'
 import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
 import type { RoomInfo } from '@/types'
@@ -20,6 +20,7 @@ const roomInfo = ref<RoomInfo | null>(null)
 
 // Metadata maps (keyed by songId)
 const orderedByMap = ref<Record<number, string>>({})
+const orderedByUserIdMap = ref<Record<number, number>>({})
 const queueIdMap = ref<Record<number, number>>({})
 
 // Display queue derived from player.queue + metadata
@@ -29,6 +30,7 @@ const displayQueue = computed(() =>
     id: queueIdMap.value[t.songId] ?? 0,
     songTitle: t.title,
     orderedBy: orderedByMap.value[t.songId] ?? '',
+    orderedByUserId: orderedByUserIdMap.value[t.songId] ?? 0,
     index: i,
   }))
 )
@@ -83,12 +85,15 @@ async function loadQueue() {
 
   // Update metadata maps
   const oMap: Record<number, string> = {}
+  const ouMap: Record<number, number> = {}
   const qMap: Record<number, number> = {}
   for (const item of data) {
     oMap[item.songId] = item.orderedBy
+    ouMap[item.songId] = item.orderedByUserId
     qMap[item.songId] = item.id
   }
   orderedByMap.value = oMap
+  orderedByUserIdMap.value = ouMap
   queueIdMap.value = qMap
 
   player.loadQueue(
@@ -99,6 +104,9 @@ async function loadQueue() {
       coverUrl: item.coverUrl,
       mediaUrl: item.mediaUrl,
       lrcUrl: item.lrcUrl || '',
+      orderedByUserId: item.orderedByUserId,
+      orderedBy: item.orderedBy,
+      queueItemId: item.id,
     }))
   )
 }
@@ -119,7 +127,10 @@ async function removeFromQueue(queueId: number) {
 }
 
 function playSong(songId: number) {
-  player.playTrackBySongId(songId)
+  const queueId = queueIdMap.value[songId]
+  if (queueId) {
+    playbackApi.play(queueId).then(() => loadPlaybackState())
+  }
 }
 
 // --- Favorites ---
@@ -156,7 +167,6 @@ async function onDrop(i: number, e: DragEvent) {
   const [item] = player.queue.splice(from, 1)
   player.queue.splice(i, 0, item)
   player.currentIndex = 0
-  player.skipNextQueueUpdate = true
   dragIndex.value = null; dragOverIndex.value = null
 
   // Persist to server (queue IDs in new order)
@@ -227,16 +237,31 @@ function formatTime(seconds: number): string {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 }
 
+// Playback state sync
+async function loadPlaybackState() {
+  try {
+    const { data } = await playbackApi.getState()
+    player.applyRemoteState(data)
+  } catch { /* ignore */ }
+}
+
 onMounted(async () => {
+  // Enable sync mode
+  if (auth.user) {
+    player.setSyncMode(true, auth.user.id)
+  }
+
   await loadRoom()
   await loadQueue()
+  await loadPlaybackState()
   await loadChatMessages()
   loadFavorites()
-  // Poll chat messages every 2 seconds
+  // Poll every 2 seconds
   chatPollTimer = setInterval(() => {
     loadChatMessages()
     loadQueue()
     loadRoom()
+    loadPlaybackState()
   }, 2000)
 })
 
@@ -331,8 +356,9 @@ onUnmounted(() => {
             </div>
             <button
               class="p-3 bg-primary text-white rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 px-6 font-bold"
-              @click="player.playNext()"
-              :class="{ 'opacity-30 pointer-events-none': player.currentIndex >= player.queue.length - 1 }"
+              @click="player.isSongOwner && playbackApi.next().then(() => loadPlaybackState())"
+              :class="{ 'opacity-30 pointer-events-none': !player.isSongOwner || player.currentIndex >= player.queue.length - 1 }"
+              :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
             >
               <span class="material-symbols-outlined">skip_next</span> 切歌
             </button>
@@ -364,64 +390,33 @@ onUnmounted(() => {
       <!-- Queue section -->
       <h3 class="text-xl font-bold px-2 mb-4">播放列表</h3>
 
-      <!-- Now Playing (index 0, pinned) -->
-      <div v-if="displayQueue.length > 0" class="glass rounded-xl p-6 mb-4 flex items-center gap-5 border border-primary/20 shadow-sm">
-        <span class="material-symbols-outlined text-primary text-lg flex-shrink-0">
-          {{ player.isPlaying ? 'equalizer' : 'play_circle' }}
-        </span>
-        <img
-          :src="API_BASE + displayQueue[0].coverUrl"
-          class="w-14 h-14 rounded-lg flex-shrink-0 object-cover shadow"
-          :alt="displayQueue[0].songTitle"
-          @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
-        />
-        <div class="flex-1 min-w-0">
-          <p class="text-sm text-primary font-semibold mb-0.5">正在播放</p>
-          <p class="font-bold truncate">{{ displayQueue[0].songTitle }}</p>
-          <p class="text-sm text-on-surface-variant truncate">{{ displayQueue[0].artist }} · {{ displayQueue[0].orderedBy }} 点播</p>
-        </div>
-        <button
-          class="press-scale flex-shrink-0"
-          @click.stop="toggleFavorite(displayQueue[0].songId)"
-        >
-          <span class="material-symbols-outlined text-lg"
-            :class="favoriteIds.has(displayQueue[0].songId) ? 'text-red-400' : 'text-slate-300 hover:text-slate-500'"
-            :style="{ fontVariationSettings: `'FILL' ${favoriteIds.has(displayQueue[0].songId) ? 1 : 0}` }"
-          >favorite</span>
-        </button>
-        <button
-          @click.stop="removeFromQueue(displayQueue[0].id)"
-          class="text-error hover:scale-110 transition-transform press-scale flex-shrink-0"
-        >
-          <span class="material-symbols-outlined">delete</span>
-        </button>
-      </div>
-
-      <!-- Up Next (index 1+) -->
-      <div v-if="displayQueue.length > 1" class="mb-3 px-2 flex items-center gap-2">
-        <span class="text-sm font-medium text-on-surface-variant">接下来</span>
-        <span class="text-xs text-on-surface-variant/50">{{ displayQueue.length - 1 }} 首</span>
-      </div>
       <div ref="playlistContainer" class="rounded-xl overflow-hidden">
         <div
-          v-for="(item, index) in displayQueue.slice(1)"
+          v-for="(item, index) in displayQueue"
           :key="item.songId"
-          :data-playlist="index + 1"
+          :data-playlist="index"
           class="flex items-center px-8 py-5 hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
           :class="[
-            dragOverIndex === index + 1 ? 'border-t-2 border-primary' : '',
-            dragIndex === index + 1 ? 'opacity-40' : '',
+            player.currentTrack?.songId === item.songId ? 'bg-primary/5' : '',
+            dragOverIndex === index ? 'border-t-2 border-primary' : '',
+            dragIndex === index ? 'opacity-40' : '',
           ]"
           draggable="true"
-          @dragstart="onDragStart(index + 1, $event)"
-          @dragover="onDragOver(index + 1, $event)"
+          @dragstart="onDragStart(index, $event)"
+          @dragover="onDragOver(index, $event)"
           @dragleave="onDragLeave"
-          @drop="onDrop(index + 1, $event)"
+          @drop="onDrop(index, $event)"
           @dragend="onDragEnd"
           @click="playSong(item.songId)"
         >
           <span class="material-symbols-outlined text-slate-300 text-sm cursor-grab active:cursor-grabbing mr-3 opacity-0 group-hover:opacity-100 transition-opacity">drag_indicator</span>
-          <span class="w-8 font-bold text-slate-400">{{ String(index + 1).padStart(2, '0') }}</span>
+          <span
+            class="w-8 font-bold"
+            :class="player.currentTrack?.songId === item.songId ? 'text-primary' : 'text-slate-400'"
+          >
+            <span v-if="player.currentTrack?.songId === item.songId && player.isPlaying" class="material-symbols-outlined text-sm align-middle">equalizer</span>
+            <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
+          </span>
           <img
             :src="API_BASE + item.coverUrl"
             class="w-12 h-12 rounded flex-shrink-0 object-cover mx-6"
@@ -429,7 +424,7 @@ onUnmounted(() => {
             @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
           />
           <div class="flex-grow grid grid-cols-3 items-center">
-            <span class="font-bold">{{ item.songTitle }}</span>
+            <span class="font-bold" :class="{ 'text-primary': player.currentTrack?.songId === item.songId }">{{ item.songTitle }}</span>
             <span class="text-on-surface-variant">{{ item.artist }}</span>
             <div class="flex items-center justify-between">
               <span class="text-sm text-slate-400">点播者: {{ item.orderedBy }}</span>

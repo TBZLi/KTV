@@ -70,4 +70,20 @@ public class PlayQueueRepository : IPlayQueueRepository
         }
         tran.Commit();
     }
+
+    public async Task MarkAsPlayedAsync(int id)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE PlayQueue SET Status = 'played' WHERE Id = @Id",
+            new { Id = id });
+    }
+
+    public async Task MarkRoomPlayedAsync(int roomId)
+    {
+        using var conn = CreateConnection();
+        await conn.ExecuteAsync(
+            "UPDATE PlayQueue SET Status = 'played' WHERE RoomId = @RoomId AND Status = 'queued'",
+            new { RoomId = roomId });
+    }
 }

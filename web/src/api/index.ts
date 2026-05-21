@@ -1,5 +1,5 @@
 import { apiClient } from './client'
-import type { Song, PlayQueueItem, Favorite, RoomInfo, PaginatedResult, User } from '@/types'
+import type { Song, PlayQueueItem, Favorite, RoomInfo, PaginatedResult, User, PlaybackState } from '@/types'
 
 export const authApi = {
   login: (username: string, password: string) =>
@@ -57,5 +57,16 @@ export const chatApi = {
     apiClient.post('/api/chat/send', { roomId, message }),
   getMessages: (roomId: number) =>
     apiClient.get<{ id: number; nickname: string; message: string; timestamp: string }[]>('/api/chat/messages', { params: { roomId } }),
+}
+
+export const playbackApi = {
+  getState: () => apiClient.get<PlaybackState>('/api/room/playback'),
+  play: (queueItemId: number) => apiClient.post('/api/room/playback/play', { queueItemId }),
+  pause: () => apiClient.post('/api/room/playback/pause'),
+  resume: () => apiClient.post('/api/room/playback/resume'),
+  seek: (position: number) => apiClient.post('/api/room/playback/seek', { position }),
+  next: () => apiClient.post('/api/room/playback/next'),
+  prev: () => apiClient.post('/api/room/playback/prev'),
+  setMode: (mode: string) => apiClient.post('/api/room/playback/mode', { mode }),
 }
 

@@ -9,4 +9,6 @@ public interface IPlayQueueRepository
     Task RemoveAsync(int id);
     Task ReorderAsync(int queueId, int newOrder);
     Task ReorderBatchAsync(List<int> queueIds);
+    Task MarkAsPlayedAsync(int id);
+    Task MarkRoomPlayedAsync(int roomId);
 }

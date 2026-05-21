@@ -17,12 +17,14 @@ public class RoomController : ControllerBase
 {
     private readonly IPlayQueueRepository _queueRepo;
     private readonly RoomService _roomService;
+    private readonly PlaybackStateService _playback;
     private readonly string _connStr;
 
-    public RoomController(IPlayQueueRepository queueRepo, RoomService roomService, string connStr)
+    public RoomController(IPlayQueueRepository queueRepo, RoomService roomService, PlaybackStateService playback, string connStr)
     {
         _queueRepo = queueRepo;
         _roomService = roomService;
+        _playback = playback;
         _connStr = connStr;
     }
 
@@ -160,5 +162,173 @@ public class RoomController : ControllerBase
     {
         var users = await _roomService.GetRoomUsersAsync(roomId);
         return Ok(users);
+    }
+
+    // ── Playback Sync Endpoints ──
+
+    private async Task<int> GetUserRoomIdAsync(int userId)
+    {
+        using var conn = new SqlConnection(_connStr);
+        return await conn.ExecuteScalarAsync<int>(
+            @"SELECT TOP 1 ru.RoomId FROM RoomUsers ru
+              INNER JOIN Rooms r ON r.Id = ru.RoomId AND r.Status != 'closed'
+              WHERE ru.UserId = @UserId",
+            new { UserId = userId });
+    }
+
+    [HttpGet("playback")]
+    public async Task<IActionResult> GetPlaybackState()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return Ok(new { hasTrack = false });
+
+        // Check if track ended and auto-advance
+        if (_playback.CheckTrackEnded(roomId))
+        {
+            var state = _playback.GetState(roomId);
+            if (state.HasTrack)
+            {
+                await _queueRepo.MarkAsPlayedAsync(state.CurrentQueueItemId);
+                await AdvanceToNextTrack(roomId, state.PlayMode);
+            }
+        }
+
+        return Ok(_playback.GetState(roomId));
+    }
+
+    [HttpPost("playback/play")]
+    public async Task<IActionResult> PlaybackPlay([FromBody] PlayRequest request)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        var queue = await _queueRepo.GetByRoomIdAsync(roomId);
+        var item = queue.FirstOrDefault(q => q.Id == request.QueueItemId);
+        if (item == null) return BadRequest(new { message = "队列项不存在" });
+
+        var duration = await GetSongDurationAsync(item.SongId);
+        _playback.Play(roomId, item.Id, item.SongId, item.SongTitle, item.Artist,
+            item.CoverUrl ?? "", item.MediaUrl ?? "", item.LrcUrl ?? "",
+            item.OrderedByUserId, item.OrderedBy, duration, userId);
+        return Ok();
+    }
+
+    [HttpPost("playback/pause")]
+    public async Task<IActionResult> PlaybackPause()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        try { _playback.Pause(roomId, userId); return Ok(); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
+    [HttpPost("playback/resume")]
+    public async Task<IActionResult> PlaybackResume()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        try { _playback.Resume(roomId, userId); return Ok(); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
+    [HttpPost("playback/seek")]
+    public async Task<IActionResult> PlaybackSeek([FromBody] SeekRequest request)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        try { _playback.Seek(roomId, request.Position, userId); return Ok(); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
+    [HttpPost("playback/next")]
+    public async Task<IActionResult> PlaybackNext()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        var state = _playback.GetState(roomId);
+        if (!state.HasTrack) return BadRequest(new { message = "没有播放歌曲" });
+        if (state.OrderedByUserId != userId) return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
+
+        await _queueRepo.MarkAsPlayedAsync(state.CurrentQueueItemId);
+        await AdvanceToNextTrack(roomId, state.PlayMode);
+        return Ok();
+    }
+
+    [HttpPost("playback/prev")]
+    public async Task<IActionResult> PlaybackPrev()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        var state = _playback.GetState(roomId);
+        if (!state.HasTrack) return BadRequest(new { message = "没有播放歌曲" });
+        if (state.OrderedByUserId != userId) return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
+
+        // Get queue and find previous item
+        var queue = await _queueRepo.GetByRoomIdAsync(roomId);
+        var currentIdx = queue.FindIndex(q => q.Id == state.CurrentQueueItemId);
+        if (currentIdx <= 0) return BadRequest(new { message = "没有上一首" });
+
+        var prev = queue[currentIdx - 1];
+        var duration = await GetSongDurationAsync(prev.SongId);
+        _playback.Play(roomId, prev.Id, prev.SongId, prev.SongTitle, prev.Artist,
+            prev.CoverUrl ?? "", prev.MediaUrl ?? "", prev.LrcUrl ?? "",
+            prev.OrderedByUserId, prev.OrderedBy, duration, userId);
+        return Ok();
+    }
+
+    [HttpPost("playback/mode")]
+    public async Task<IActionResult> PlaybackMode([FromBody] PlayModeRequest request)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var roomId = await GetUserRoomIdAsync(userId);
+        if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
+
+        try { _playback.SetPlayMode(roomId, request.Mode, userId); return Ok(); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
+    }
+
+    private async Task AdvanceToNextTrack(int roomId, string playMode)
+    {
+        var queue = await _queueRepo.GetByRoomIdAsync(roomId);
+
+        if (queue.Count == 0)
+        {
+            if (playMode == "repeat-one")
+            {
+                // repeat-one with no queue means the track was already marked played,
+                // but there's nothing to repeat to — stop
+                _playback.Stop(roomId);
+                return;
+            }
+            _playback.Stop(roomId);
+            return;
+        }
+
+        // queue is ordered by SortOrder, first item is the next track
+        var next = queue[0];
+        var duration = await GetSongDurationAsync(next.SongId);
+        _playback.Play(roomId, next.Id, next.SongId, next.SongTitle, next.Artist,
+            next.CoverUrl ?? "", next.MediaUrl ?? "", next.LrcUrl ?? "",
+            next.OrderedByUserId, next.OrderedBy, duration, next.OrderedByUserId);
+    }
+
+    private async Task<int> GetSongDurationAsync(int songId)
+    {
+        using var conn = new SqlConnection(_connStr);
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT ISNULL(Duration, 0) FROM Songs WHERE Id = @Id",
+            new { Id = songId });
     }
 }
