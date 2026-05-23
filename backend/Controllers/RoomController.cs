@@ -189,8 +189,15 @@ public class RoomController : ControllerBase
             var state = _playback.GetState(roomId);
             if (state.HasTrack)
             {
-                await _queueRepo.MarkAsPlayedAsync(state.CurrentQueueItemId);
-                await AdvanceToNextTrack(roomId, state.PlayMode);
+                var playMode = _playback.GetPlayMode(roomId);
+                if (playMode == "repeat-one")
+                {
+                    _playback.Replay(roomId);
+                }
+                else
+                {
+                    await AdvanceToNextTrack(roomId);
+                }
             }
         }
 
@@ -208,10 +215,17 @@ public class RoomController : ControllerBase
         var item = queue.FirstOrDefault(q => q.Id == request.QueueItemId);
         if (item == null) return BadRequest(new { message = "队列项不存在" });
 
+        // 只有当前歌曲的点歌人才能切歌（无歌曲时允许任何人开始播放）
+        var currentState = _playback.GetState(roomId);
+        if (currentState.HasTrack && currentState.OrderedByUserId != userId)
+            return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
+
         var duration = await GetSongDurationAsync(item.SongId);
         _playback.Play(roomId, item.Id, item.SongId, item.SongTitle, item.Artist,
             item.CoverUrl ?? "", item.MediaUrl ?? "", item.LrcUrl ?? "",
-            item.OrderedByUserId, item.OrderedBy, duration, userId);
+            item.OrderedByUserId, item.OrderedBy, duration);
+
+        // 队列不动，指针移动 — 不做任何重排
         return Ok();
     }
 
@@ -259,32 +273,47 @@ public class RoomController : ControllerBase
         if (!state.HasTrack) return BadRequest(new { message = "没有播放歌曲" });
         if (state.OrderedByUserId != userId) return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
 
-        await _queueRepo.MarkAsPlayedAsync(state.CurrentQueueItemId);
-        await AdvanceToNextTrack(roomId, state.PlayMode);
+        if (state.PlayMode == "repeat-one")
+        {
+            _playback.Replay(roomId);
+            return Ok();
+        }
+
+        var queue = await _queueRepo.GetByRoomIdAsync(roomId);
+        var next = PickNext(queue, state.CurrentQueueItemId, state.PlayMode);
+
+        if (next == null)
+        {
+            _playback.Stop(roomId);
+            return Ok();
+        }
+
+        var duration = await GetSongDurationAsync(next.SongId);
+        _playback.Play(roomId, next.Id, next.SongId, next.SongTitle, next.Artist,
+            next.CoverUrl ?? "", next.MediaUrl ?? "", next.LrcUrl ?? "",
+            next.OrderedByUserId, next.OrderedBy, duration);
         return Ok();
     }
 
     [HttpPost("playback/prev")]
-    public async Task<IActionResult> PlaybackPrev()
+    public IActionResult PlaybackPrev()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-        var roomId = await GetUserRoomIdAsync(userId);
+        var roomId = GetUserRoomIdAsync(userId).GetAwaiter().GetResult();
         if (roomId <= 0) return BadRequest(new { message = "未在房间中" });
 
         var state = _playback.GetState(roomId);
         if (!state.HasTrack) return BadRequest(new { message = "没有播放歌曲" });
         if (state.OrderedByUserId != userId) return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
 
-        // Get queue and find previous item
-        var queue = await _queueRepo.GetByRoomIdAsync(roomId);
-        var currentIdx = queue.FindIndex(q => q.Id == state.CurrentQueueItemId);
-        if (currentIdx <= 0) return BadRequest(new { message = "没有上一首" });
+        // ★ 关键改动：从 history stack 弹出，不依赖 queue index
+        var prev = _playback.PopHistory(roomId);
+        if (prev == null) return BadRequest(new { message = "没有上一首" });
 
-        var prev = queue[currentIdx - 1];
-        var duration = await GetSongDurationAsync(prev.SongId);
-        _playback.Play(roomId, prev.Id, prev.SongId, prev.SongTitle, prev.Artist,
-            prev.CoverUrl ?? "", prev.MediaUrl ?? "", prev.LrcUrl ?? "",
-            prev.OrderedByUserId, prev.OrderedBy, duration, userId);
+        // Play 会自动将当前歌曲推入 history（实现链式回退）
+        _playback.Play(roomId, prev.QueueItemId, prev.SongId, prev.Title, prev.Artist,
+            prev.CoverUrl, prev.MediaUrl, prev.LrcUrl,
+            prev.OrderedByUserId, prev.OrderedByName, prev.Duration);
         return Ok();
     }
 
@@ -299,29 +328,60 @@ public class RoomController : ControllerBase
         catch (UnauthorizedAccessException ex) { return StatusCode(403, new { message = ex.Message }); }
     }
 
-    private async Task AdvanceToNextTrack(int roomId, string playMode)
+    private async Task AdvanceToNextTrack(int roomId)
     {
         var queue = await _queueRepo.GetByRoomIdAsync(roomId);
+        var state = _playback.GetState(roomId);
 
-        if (queue.Count == 0)
+        if (!state.HasTrack || queue.Count == 0)
         {
-            if (playMode == "repeat-one")
-            {
-                // repeat-one with no queue means the track was already marked played,
-                // but there's nothing to repeat to — stop
-                _playback.Stop(roomId);
-                return;
-            }
             _playback.Stop(roomId);
             return;
         }
 
-        // queue is ordered by SortOrder, first item is the next track
-        var next = queue[0];
+        var next = PickNext(queue, state.CurrentQueueItemId, state.PlayMode);
+
+        if (next == null)
+        {
+            _playback.Stop(roomId);
+            return;
+        }
+
         var duration = await GetSongDurationAsync(next.SongId);
         _playback.Play(roomId, next.Id, next.SongId, next.SongTitle, next.Artist,
             next.CoverUrl ?? "", next.MediaUrl ?? "", next.LrcUrl ?? "",
-            next.OrderedByUserId, next.OrderedBy, duration, next.OrderedByUserId);
+            next.OrderedByUserId, next.OrderedBy, duration);
+    }
+
+    private static readonly Random _rng = new();
+
+    /// <summary>
+    /// 根据播放模式选择下一首。返回 null 表示应停止。
+    /// </summary>
+    private static PlayQueueItem? PickNext(List<PlayQueueItem> queue, int currentQueueItemId, string playMode)
+    {
+        if (queue.Count == 0) return null;
+
+        var currentIdx = queue.FindIndex(q => q.Id == currentQueueItemId);
+
+        // shuffle：随机选一首（排除当前）
+        if (playMode == "shuffle")
+        {
+            if (queue.Count <= 1) return null;
+            int nextIdx;
+            do { nextIdx = _rng.Next(queue.Count); } while (nextIdx == currentIdx);
+            return queue[nextIdx];
+        }
+
+        // repeat-all / off：顺序前进，末尾行为不同
+        if (currentIdx < 0 || currentIdx >= queue.Count - 1)
+        {
+            if (playMode == "repeat-all")
+                return queue[0];  // 列表循环 → 回到开头
+            return null;          // off → 停止
+        }
+
+        return queue[currentIdx + 1];
     }
 
     private async Task<int> GetSongDurationAsync(int songId)

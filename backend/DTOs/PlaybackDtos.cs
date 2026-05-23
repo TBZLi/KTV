@@ -16,6 +16,7 @@ public class PlaybackStateDto
     public double CurrentTime { get; set; }
     public int Duration { get; set; }
     public string PlayMode { get; set; } = "off";
+    public bool HasPrev { get; set; }
 }
 
 public class PlayRequest
