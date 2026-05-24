@@ -8,6 +8,12 @@ const router = useRouter()
 const auth = useAuthStore()
 const showMenu = ref(false)
 const isDark = ref(false)
+const searchQuery = ref('')
+
+function doSearch() {
+  const q = searchQuery.value.trim()
+  if (q) router.push({ path: '/explore', query: { search: q } })
+}
 
 onMounted(() => {
   isDark.value = localStorage.getItem('theme') === 'dark'
@@ -36,8 +42,8 @@ async function handleLogout() {
     <div class="flex items-center gap-8">
       <span class="text-xl font-bold tracking-tighter text-on-surface dark:text-[var(--d-on-surface)]">声域友</span>
       <div class="relative w-96">
-        <input class="w-full bg-surface-container dark:bg-[var(--d-input-bg)] dark:text-[var(--d-on-surface)] dark:placeholder:text-[var(--d-on-surface-variant)] border-none rounded-full px-6 py-2 focus:ring-2 focus:ring-primary outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)]" placeholder="搜索歌曲、歌手..." type="text"/>
-        <span class="material-symbols-outlined absolute right-4 top-2 text-slate-400 dark:text-[var(--d-on-surface-variant)]">search</span>
+        <input v-model="searchQuery" @keydown.enter="doSearch" class="w-full bg-surface-container dark:bg-[var(--d-input-bg)] dark:text-[var(--d-on-surface)] dark:placeholder:text-[var(--d-on-surface-variant)] border-none rounded-full px-6 py-2 focus:ring-2 focus:ring-primary outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)]" placeholder="搜索歌曲、歌手..." type="text"/>
+        <span @click="doSearch" class="material-symbols-outlined absolute right-4 top-2 text-slate-400 dark:text-[var(--d-on-surface-variant)] cursor-pointer">search</span>
       </div>
     </div>
     <div class="flex items-center gap-6">

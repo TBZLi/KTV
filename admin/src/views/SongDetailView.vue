@@ -209,7 +209,7 @@ const loading = ref(true)
 const detail = ref<SongDetail | null>(null)
 const editing = ref(false)
 const saving = ref(false)
-const genres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典']
+const genres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典', '纯音乐']
 const languages = ['中文', '英文', '日文', '韩文', '其他']
 
 // Edit form state

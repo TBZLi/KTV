@@ -79,4 +79,4 @@ export const mockOperationLogs: OperationLog[] = [
   { id: 7, username: 'admin', operationType: 'login', objectType: 'auth', objectId: null, details: '管理员登录', createdAt: '2026-05-15 09:00:00' },
 ]
 
-export const mockGenres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典']
+export const mockGenres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典', '纯音乐']

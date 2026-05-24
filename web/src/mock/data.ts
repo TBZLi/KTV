@@ -32,7 +32,7 @@ export const mockSongs: Song[] = [
   { id: 25, title: '玫瑰花的葬礼', artist: '许嵩', genre: '流行', duration: 258, coverUrl: '', mediaUrl: '', playCount: 140000, status: 'active', createdAt: '2023-06-01' },
 ]
 
-export const mockGenres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典']
+export const mockGenres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典', '纯音乐']
 
 export const mockFavorites: Favorite[] = [
   { id: 1, userId: 1, songId: 1, song: mockSongs[0], createdAt: '2023-10-20' },

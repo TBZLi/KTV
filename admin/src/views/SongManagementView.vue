@@ -270,7 +270,7 @@ const statusFilter = ref('')
 let searchTimer: ReturnType<typeof setTimeout>
 
 const songStats = ref<SongStats>({ totalSongs: 0, weeklyNew: 0, todayPlays: 0 })
-const genres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典']
+const genres = ['流行', '摇滚', '民谣', '电子', 'R&B', '嘻哈', '古典', '纯音乐']
 const languages = ['中文', '英文', '日文', '韩文', '其他']
 
 // Dialog state

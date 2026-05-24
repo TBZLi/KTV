@@ -16,13 +16,15 @@ namespace backend.Controllers;
 public class RoomController : ControllerBase
 {
     private readonly IPlayQueueRepository _queueRepo;
+    private readonly ISongRepository _songRepo;
     private readonly RoomService _roomService;
     private readonly PlaybackStateService _playback;
     private readonly string _connStr;
 
-    public RoomController(IPlayQueueRepository queueRepo, RoomService roomService, PlaybackStateService playback, string connStr)
+    public RoomController(IPlayQueueRepository queueRepo, ISongRepository songRepo, RoomService roomService, PlaybackStateService playback, string connStr)
     {
         _queueRepo = queueRepo;
+        _songRepo = songRepo;
         _roomService = roomService;
         _playback = playback;
         _connStr = connStr;
@@ -189,6 +191,12 @@ public class RoomController : ControllerBase
             var state = _playback.GetState(roomId);
             if (state.HasTrack)
             {
+                // 播放完毕记录播放次数（仅自然结束，切歌不记录）
+                if (_playback.TryMarkPlayCountRecorded(roomId))
+                {
+                    try { await _songRepo.IncrementPlayCountAsync(state.SongId); } catch { }
+                }
+
                 var playMode = _playback.GetPlayMode(roomId);
                 if (playMode == "repeat-one")
                 {
@@ -306,14 +314,11 @@ public class RoomController : ControllerBase
         if (!state.HasTrack) return BadRequest(new { message = "没有播放歌曲" });
         if (state.OrderedByUserId != userId) return StatusCode(403, new { message = "只有当前歌曲的点歌人才能控制播放" });
 
-        // ★ 关键改动：从 history stack 弹出，不依赖 queue index
+        // 从 history 弹出上一首，用 PlayFromSnapshot 恢复（不 push history）
         var prev = _playback.PopHistory(roomId);
         if (prev == null) return BadRequest(new { message = "没有上一首" });
 
-        // Play 会自动将当前歌曲推入 history（实现链式回退）
-        _playback.Play(roomId, prev.QueueItemId, prev.SongId, prev.Title, prev.Artist,
-            prev.CoverUrl, prev.MediaUrl, prev.LrcUrl,
-            prev.OrderedByUserId, prev.OrderedByName, prev.Duration);
+        _playback.PlayFromSnapshot(roomId, prev);
         return Ok();
     }
 

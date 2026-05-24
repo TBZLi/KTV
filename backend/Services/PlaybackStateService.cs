@@ -39,6 +39,7 @@ public class PlaybackStateService
         public int Duration { get; set; }
         public string PlayMode { get; set; } = "off";
         public Stack<PlayedSnapshot> History { get; set; } = new();
+        public bool PlayCountRecorded { get; set; }
     }
 
     private readonly ConcurrentDictionary<int, RoomPlaybackState> _states = new();
@@ -84,7 +85,10 @@ public class PlaybackStateService
         if (_states.TryGetValue(roomId, out var existing))
         {
             playMode = existing.PlayMode;
-            history = new Stack<PlayedSnapshot>(existing.History);
+            // new Stack<T>(IEnumerable) 会反转顺序，需要先 Reverse
+            var items = existing.History.ToArray();
+            Array.Reverse(items);
+            history = new Stack<PlayedSnapshot>(items);
 
             // 将当前歌曲推入历史快照（与 queue 解耦）
             if (existing.SongId > 0)
@@ -137,6 +141,40 @@ public class PlaybackStateService
             return null;
 
         return state.History.Pop();
+    }
+
+    /// <summary>
+    /// 从历史快照恢复播放 — 不 push history，保留已有栈
+    /// </summary>
+    public void PlayFromSnapshot(int roomId, PlayedSnapshot snap)
+    {
+        var playMode = "off";
+        var history = new Stack<PlayedSnapshot>();
+
+        if (_states.TryGetValue(roomId, out var existing))
+        {
+            playMode = existing.PlayMode;
+            history = existing.History; // 保留已有栈，不 push
+        }
+
+        _states[roomId] = new RoomPlaybackState
+        {
+            CurrentQueueItemId = snap.QueueItemId,
+            SongId = snap.SongId,
+            Title = snap.Title,
+            Artist = snap.Artist,
+            CoverUrl = snap.CoverUrl,
+            MediaUrl = snap.MediaUrl,
+            LrcUrl = snap.LrcUrl,
+            OrderedByUserId = snap.OrderedByUserId,
+            OrderedByName = snap.OrderedByName,
+            IsPlaying = true,
+            StartedAt = DateTime.UtcNow,
+            PausedPosition = 0,
+            Duration = snap.Duration,
+            PlayMode = playMode,
+            History = history,
+        };
     }
 
     /// <summary>
@@ -225,6 +263,19 @@ public class PlaybackStateService
             return false;
 
         return CalculateCurrentTime(state) >= state.Duration && state.Duration > 0;
+    }
+
+    /// <summary>
+    /// 检查并标记播放次数已记录，防止重复计数
+    /// </summary>
+    public bool TryMarkPlayCountRecorded(int roomId)
+    {
+        if (!_states.TryGetValue(roomId, out var state))
+            return false;
+        if (state.PlayCountRecorded)
+            return false;
+        state.PlayCountRecorded = true;
+        return true;
     }
 
     private static double CalculateCurrentTime(RoomPlaybackState state)

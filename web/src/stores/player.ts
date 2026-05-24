@@ -171,21 +171,17 @@ export const usePlayerStore = defineStore('player', () => {
   // ── Queue management ──
 
   function loadQueue(tracks: PlayerTrack[]) {
-    const currentSongId = currentTrack.value?.songId
+    const currentQid = currentQueueItemId.value
     queue.value = tracks
 
     if (tracks.length === 0) {
       currentIndex.value = -1; audio.src = ''; isPlaying.value = false; return
     }
 
-    // Keep current song at front if still in queue
-    if (currentSongId != null) {
-      const newIndex = tracks.findIndex(t => t.songId === currentSongId)
-      if (newIndex >= 0 && newIndex !== 0) {
-        const [track] = queue.value.splice(newIndex, 1)
-        queue.value.unshift(track)
-      }
-      currentIndex.value = 0
+    // Update currentIndex to match current track in new queue
+    if (currentQid != null) {
+      const newIndex = tracks.findIndex(t => t.queueItemId === currentQid)
+      currentIndex.value = newIndex >= 0 ? newIndex : -1
     }
   }
 

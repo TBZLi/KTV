@@ -595,7 +595,7 @@ const coverSrc = computed(() =>
                 :data-playlist-qid="track.queueItemId"
                 class="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all mb-1 group"
                 :class="[
-                  player.currentQueueItemId === track.queueItemId ? 'bg-white/10' : 'hover:bg-white/5',
+                  player.currentQueueItemId === track.queueItemId ? 'bg-white/20 ring-1 ring-[#71fcfe]/40' : 'hover:bg-white/5',
                   dragOverIndex === i ? 'border-t-2 border-[#71fcfe]' : '',
                   dragIndex === i ? 'opacity-40' : ''
                 ]"
@@ -613,10 +613,10 @@ const coverSrc = computed(() =>
                   class="w-8 h-8 rounded object-cover flex-shrink-0"
                 />
                 <div class="min-w-0 flex-1">
-                  <p class="text-xs truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-white font-bold' : 'text-white/60'">
+                  <p class="text-xs truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-[#71fcfe] font-bold' : 'text-white/60'">
                     {{ track.title }}
                   </p>
-                  <p class="text-[10px] truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-white/50' : 'text-white/25'">
+                  <p class="text-[10px] truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-white/70' : 'text-white/25'">
                     {{ track.artist }}
                   </p>
                 </div>

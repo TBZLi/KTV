@@ -380,7 +380,7 @@ onUnmounted(() => {
           :data-playlist-qid="item.queueItemId"
           class="flex items-center px-8 py-5 hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
           :class="[
-            player.currentQueueItemId === item.queueItemId ? 'bg-primary/5' : '',
+            player.currentQueueItemId === item.queueItemId ? 'bg-primary/15 ring-1 ring-primary/30' : '',
             dragOverIndex === index ? 'border-t-2 border-primary' : '',
             dragIndex === index ? 'opacity-40' : '',
           ]"

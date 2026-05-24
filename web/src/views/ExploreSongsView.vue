@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { songsApi, feedbacksApi, favoritesApi } from '@/api'
 import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
@@ -9,10 +10,12 @@ import { useToast } from '@/composables/useToast'
 // Toast
 const { toastMsg, showToast } = useToast()
 
+const route = useRoute()
 const { orderSong } = useSongOrder()
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 const genres = ref<string[]>([])
 const selectedGenre = ref<string>('')
+const searchKeyword = ref('')
 const songs = ref<Song[]>([])
 const favoritedSongIds = ref<Set<number>>(new Set())
 
@@ -32,12 +35,17 @@ async function loadGenres() {
 
 async function loadSongs() {
   const { data } = await songsApi.getList({
+    search: searchKeyword.value || undefined,
     genre: selectedGenre.value || undefined,
     status: 'active',
     page: 1,
     pageSize: 50,
   })
   songs.value = data.items
+}
+
+function doSearch() {
+  loadSongs()
 }
 
 function selectGenre(genre: string) {
@@ -99,9 +107,15 @@ async function submitFeedback() {
 }
 
 onMounted(() => {
+  if (route.query.search) searchKeyword.value = String(route.query.search)
   loadGenres()
   loadSongs()
   loadFavorites()
+})
+
+watch(() => route.query.search, (val) => {
+  searchKeyword.value = val ? String(val) : ''
+  loadSongs()
 })
 </script>
 
@@ -123,6 +137,17 @@ onMounted(() => {
     <div class="mb-10">
       <h1 class="text-5xl font-extrabold text-on-surface dark:text-[var(--d-on-surface)] font-display tracking-tight mb-2">探索歌曲</h1>
       <p class="text-on-surface-variant dark:text-[var(--d-on-surface-variant)]">探索属于你的音乐世界，发现最新潮流单曲</p>
+    </div>
+
+    <!-- Search bar -->
+    <div class="relative mb-6">
+      <input
+        v-model="searchKeyword"
+        @keydown.enter="doSearch"
+        placeholder="搜索歌曲名、歌手..."
+        class="w-full bg-surface-container dark:bg-[var(--d-input-bg)] dark:text-[var(--d-on-surface)] dark:placeholder:text-[var(--d-on-surface-variant)] border-none rounded-full px-6 py-3 focus:ring-2 focus:ring-primary outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)] text-sm"
+      />
+      <span @click="doSearch" class="material-symbols-outlined absolute right-4 top-3 text-slate-400 dark:text-[var(--d-on-surface-variant)] cursor-pointer">search</span>
     </div>
 
     <!-- Genre filter pills -->
