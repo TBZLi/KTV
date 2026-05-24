@@ -33,6 +33,7 @@ async function loadGenres() {
 async function loadSongs() {
   const { data } = await songsApi.getList({
     genre: selectedGenre.value || undefined,
+    status: 'active',
     page: 1,
     pageSize: 50,
   })
@@ -120,8 +121,8 @@ onMounted(() => {
   <div class="max-w-4xl mx-auto px-8">
     <!-- Page Title -->
     <div class="mb-10">
-      <h1 class="text-5xl font-extrabold text-on-surface font-display tracking-tight mb-2">探索歌曲</h1>
-      <p class="text-on-surface-variant">探索属于你的音乐世界，发现最新潮流单曲</p>
+      <h1 class="text-5xl font-extrabold text-on-surface dark:text-[var(--d-on-surface)] font-display tracking-tight mb-2">探索歌曲</h1>
+      <p class="text-on-surface-variant dark:text-[var(--d-on-surface-variant)]">探索属于你的音乐世界，发现最新潮流单曲</p>
     </div>
 
     <!-- Genre filter pills -->
@@ -131,8 +132,8 @@ onMounted(() => {
         :class="[
           'px-6 py-2 rounded-full font-bold text-sm transition-all',
           selectedGenre === ''
-            ? 'bg-primary text-on-primary'
-            : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
+            ? 'bg-primary text-on-primary dark:bg-[var(--d-primary)] dark:text-[var(--d-on-primary)]'
+            : 'glass text-on-surface dark:text-[var(--d-on-surface)] hover:bg-primary-fixed dark:hover:bg-[var(--d-hover-bg)] shadow-sm',
         ]"
       >
         全部
@@ -144,8 +145,8 @@ onMounted(() => {
         :class="[
           'px-6 py-2 rounded-full font-bold text-sm transition-all',
           selectedGenre === genre
-            ? 'bg-primary text-on-primary'
-            : 'glass text-on-surface hover:bg-primary-fixed shadow-sm',
+            ? 'bg-primary text-on-primary dark:bg-[var(--d-primary)] dark:text-[var(--d-on-primary)]'
+            : 'glass text-on-surface dark:text-[var(--d-on-surface)] hover:bg-primary-fixed dark:hover:bg-[var(--d-hover-bg)] shadow-sm',
         ]"
       >
         {{ genre }}
@@ -157,7 +158,7 @@ onMounted(() => {
       <div
         v-for="song in songs"
         :key="song.id"
-        class="flex items-center gap-6 p-4 -mx-4 rounded-lg hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
+        class="flex items-center gap-6 p-4 -mx-4 rounded-lg hover:glass hover:shadow-lg dark:hover:shadow-[0_4px_20px_var(--d-shadow-color)] hover:scale-[1.02] transition-all duration-300 cursor-pointer group"
       >
         <!-- Album cover -->
         <img
@@ -167,19 +168,19 @@ onMounted(() => {
           :alt="song.title"
           @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
         />
-        <div v-else class="w-16 h-16 rounded bg-surface-container shrink-0 shadow-sm flex items-center justify-center">
-          <span class="material-symbols-outlined text-slate-400">image</span>
+        <div v-else class="w-16 h-16 rounded bg-surface-container dark:bg-[var(--d-surface-container-high)] shrink-0 shadow-sm flex items-center justify-center">
+          <span class="material-symbols-outlined text-slate-400 dark:text-[var(--d-outline)]">image</span>
         </div>
 
         <!-- Song info -->
         <div class="flex-1 min-w-0">
-          <h3 class="text-xl font-bold text-on-surface truncate font-headline mb-1">{{ song.title }}</h3>
-          <p class="text-sm text-on-surface-variant truncate font-label">{{ song.artist }}</p>
+          <h3 class="text-xl font-bold text-on-surface dark:text-[var(--d-on-surface)] truncate font-headline mb-1">{{ song.title }}</h3>
+          <p class="text-sm text-on-surface-variant dark:text-[var(--d-on-surface-variant)] truncate font-label">{{ song.artist }}</p>
         </div>
 
         <!-- Play count -->
         <div class="text-right mr-4 hidden sm:block">
-          <span class="text-sm font-medium text-on-surface-variant font-label">{{ formatPlayCount(song.playCount) }} 次播放</span>
+          <span class="text-sm font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] font-label">{{ formatPlayCount(song.playCount) }} 次播放</span>
         </div>
 
         <!-- Actions -->
@@ -187,7 +188,7 @@ onMounted(() => {
           <!-- Favorite toggle -->
           <button
             @click="toggleFavorite(song.id)"
-            class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors"
+            class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high dark:hover:bg-[var(--d-hover-bg)] transition-colors"
           >
             <span
               class="material-symbols-outlined"
@@ -211,50 +212,50 @@ onMounted(() => {
     <!-- Feedback FAB -->
     <button
       @click="openFeedbackDialog"
-      class="fixed bottom-28 right-8 w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-40"
+      class="fixed bottom-28 right-8 w-14 h-14 bg-primary text-on-primary dark:bg-[var(--d-primary)] dark:text-[var(--d-on-primary)] rounded-full shadow-lg shadow-primary/30 flex items-center justify-center hover:scale-110 active:scale-95 transition-transform z-40"
       title="反馈"
     >
       <span class="material-symbols-outlined">feedback</span>
     </button>
 
     <!-- Feedback Dialog -->
-    <div v-if="showFeedbackDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40" @click.self="showFeedbackDialog = false">
+    <div v-if="showFeedbackDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60" @click.self="showFeedbackDialog = false">
       <div class="glass rounded-2xl shadow-xl w-full max-w-md p-8 space-y-6">
         <template v-if="!feedbackSuccess">
-          <h3 class="text-xl font-display font-bold text-on-surface">用户反馈</h3>
+          <h3 class="text-xl font-display font-bold text-on-surface dark:text-[var(--d-on-surface)]">用户反馈</h3>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">反馈类型</label>
-              <select v-model="feedbackType" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none">
+              <label class="block text-sm font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] mb-1">反馈类型</label>
+              <select v-model="feedbackType" class="w-full bg-surface-container-high dark:bg-[var(--d-input-bg)] border-none rounded-lg py-3 px-4 text-on-surface dark:text-[var(--d-on-surface)] focus:ring-2 focus:ring-primary/30 outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)]">
                 <option value="request_song">请求添加歌曲</option>
                 <option value="report_error">歌曲信息纠错</option>
                 <option value="other">其他建议</option>
               </select>
             </div>
             <div v-if="feedbackType === 'request_song' || feedbackType === 'report_error'">
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">歌曲名称 {{ feedbackType === 'request_song' ? '(必填)' : '' }}</label>
-              <input v-model="feedbackSongName" :required="feedbackType === 'request_song'" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+              <label class="block text-sm font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] mb-1">歌曲名称 {{ feedbackType === 'request_song' ? '(必填)' : '' }}</label>
+              <input v-model="feedbackSongName" :required="feedbackType === 'request_song'" class="w-full bg-surface-container-high dark:bg-[var(--d-input-bg)] border-none rounded-lg py-3 px-4 text-on-surface dark:text-[var(--d-on-surface)] focus:ring-2 focus:ring-primary/30 outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)]" />
             </div>
             <div v-if="feedbackType === 'request_song' || feedbackType === 'report_error'">
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">歌手（可选）</label>
-              <input v-model="feedbackArtist" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none" />
+              <label class="block text-sm font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] mb-1">歌手（可选）</label>
+              <input v-model="feedbackArtist" class="w-full bg-surface-container-high dark:bg-[var(--d-input-bg)] border-none rounded-lg py-3 px-4 text-on-surface dark:text-[var(--d-on-surface)] focus:ring-2 focus:ring-primary/30 outline-none dark:ring-1 dark:ring-[var(--d-outline-variant)]" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-on-surface-variant mb-1">补充说明（可选）</label>
-              <textarea v-model="feedbackDescription" rows="3" class="w-full bg-surface-container-high border-none rounded-lg py-3 px-4 text-on-surface focus:ring-2 focus:ring-primary/30 outline-none resize-none"></textarea>
+              <label class="block text-sm font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] mb-1">补充说明（可选）</label>
+              <textarea v-model="feedbackDescription" rows="3" class="w-full bg-surface-container-high dark:bg-[var(--d-input-bg)] border-none rounded-lg py-3 px-4 text-on-surface dark:text-[var(--d-on-surface)] focus:ring-2 focus:ring-primary/30 outline-none resize-none dark:ring-1 dark:ring-[var(--d-outline-variant)]"></textarea>
             </div>
           </div>
           <div class="flex justify-end gap-3 pt-2">
-            <button @click="showFeedbackDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant hover:bg-surface-container transition-colors">取消</button>
-            <button @click="submitFeedback" :disabled="feedbackLoading" class="px-6 py-3 bg-primary text-on-primary rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
+            <button @click="showFeedbackDialog = false" class="px-6 py-3 rounded-lg font-medium text-on-surface-variant dark:text-[var(--d-on-surface-variant)] hover:bg-surface-container dark:hover:bg-[var(--d-hover-bg)] transition-colors">取消</button>
+            <button @click="submitFeedback" :disabled="feedbackLoading" class="px-6 py-3 bg-primary text-on-primary dark:bg-[var(--d-primary)] dark:text-[var(--d-on-primary)] rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-60">
               {{ feedbackLoading ? '提交中...' : '提交' }}
             </button>
           </div>
         </template>
         <template v-else>
           <div class="text-center py-8">
-            <span class="material-symbols-outlined text-5xl text-primary mb-4">check_circle</span>
-            <p class="text-lg font-semibold text-on-surface">反馈已提交，感谢您的建议</p>
+            <span class="material-symbols-outlined text-5xl text-primary dark:text-[var(--d-primary)] mb-4">check_circle</span>
+            <p class="text-lg font-semibold text-on-surface dark:text-[var(--d-on-surface)]">反馈已提交，感谢您的建议</p>
           </div>
         </template>
       </div>

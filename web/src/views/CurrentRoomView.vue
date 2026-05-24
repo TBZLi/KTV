@@ -18,19 +18,18 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'ht
 
 const roomInfo = ref<RoomInfo | null>(null)
 
-// Metadata maps (keyed by songId)
+// Metadata maps (keyed by queueItemId)
 const orderedByMap = ref<Record<number, string>>({})
 const orderedByUserIdMap = ref<Record<number, number>>({})
-const queueIdMap = ref<Record<number, number>>({})
 
 // Display queue derived from player.queue + metadata
 const displayQueue = computed(() =>
   player.queue.map((t, i) => ({
     ...t,
-    id: queueIdMap.value[t.songId] ?? 0,
+    id: t.queueItemId,
     songTitle: t.title,
-    orderedBy: orderedByMap.value[t.songId] ?? '',
-    orderedByUserId: orderedByUserIdMap.value[t.songId] ?? 0,
+    orderedBy: orderedByMap.value[t.queueItemId] ?? t.orderedByName ?? '',
+    orderedByUserId: orderedByUserIdMap.value[t.queueItemId] ?? t.orderedByUserId ?? 0,
     index: i,
   }))
 )
@@ -83,18 +82,15 @@ async function loadRoom() {
 async function loadQueue() {
   const { data } = await roomApi.getQueue()
 
-  // Update metadata maps
+  // Update metadata maps (keyed by queueItemId)
   const oMap: Record<number, string> = {}
   const ouMap: Record<number, number> = {}
-  const qMap: Record<number, number> = {}
   for (const item of data) {
-    oMap[item.songId] = item.orderedBy
-    ouMap[item.songId] = item.orderedByUserId
-    qMap[item.songId] = item.id
+    oMap[item.id] = item.orderedBy
+    ouMap[item.id] = item.orderedByUserId
   }
   orderedByMap.value = oMap
   orderedByUserIdMap.value = ouMap
-  queueIdMap.value = qMap
 
   player.loadQueue(
     data.map(item => ({
@@ -105,32 +101,24 @@ async function loadQueue() {
       mediaUrl: item.mediaUrl,
       lrcUrl: item.lrcUrl || '',
       orderedByUserId: item.orderedByUserId,
-      orderedBy: item.orderedBy,
+      orderedByName: item.orderedBy,
       queueItemId: item.id,
     }))
   )
 }
 
 async function removeFromQueue(queueId: number) {
-  // Find the songId for this queue entry
-  const songId = Object.entries(queueIdMap.value).find(([, id]) => id === queueId)?.[0]
   await roomApi.removeFromQueue(queueId)
-
-  if (songId) {
-    const sid = Number(songId)
-    delete orderedByMap.value[sid]
-    delete queueIdMap.value[sid]
-    if (player.currentTrack?.songId === sid) {
-      player.loadQueue(player.queue.filter(t => t.songId !== sid))
-    }
-  }
+  delete orderedByMap.value[queueId]
+  delete orderedByUserIdMap.value[queueId]
+  player.loadQueue(player.queue.filter(t => t.queueItemId !== queueId))
 }
 
-function playSong(songId: number) {
-  const queueId = queueIdMap.value[songId]
-  if (queueId) {
-    playbackApi.play(queueId).then(() => loadPlaybackState())
-  }
+function playSong(queueItemId: number) {
+  playbackApi.play(queueItemId).then(() => {
+    loadPlaybackState()
+    loadQueue()
+  })
 }
 
 // --- Favorites ---
@@ -144,43 +132,38 @@ async function toggleFavorite(songId: number) {
   favoriteIds.value = new Set(favoriteIds.value)
 }
 
-// --- Drag reorder ---
+// --- Drag reorder (server-side only) ---
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 function onDragStart(i: number, e: DragEvent) {
-  if (i === player.currentIndex) { return }
   dragIndex.value = i; if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 function onDragOver(i: number, e: DragEvent) {
   e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = i === player.currentIndex ? 'none' : 'move'
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dragOverIndex.value = i
 }
 function onDragLeave() { dragOverIndex.value = null }
 async function onDrop(i: number, e: DragEvent) {
   e.preventDefault()
-  if (i === player.currentIndex) { dragIndex.value = null; dragOverIndex.value = null; return }
   if (dragIndex.value === null || dragIndex.value === i) { dragIndex.value = null; dragOverIndex.value = null; return }
   const from = dragIndex.value
-
-  // Reorder player.queue directly
-  const [item] = player.queue.splice(from, 1)
-  player.queue.splice(i, 0, item)
-  player.currentIndex = 0
   dragIndex.value = null; dragOverIndex.value = null
 
-  // Persist to server (queue IDs in new order)
-  const ids = player.queue.map(t => queueIdMap.value[t.songId]).filter(Boolean)
-  try { await roomApi.reorderBatch(ids) } catch {}
+  // Reorder on server, then refresh queue
+  const ids = [...player.queue.map(t => t.queueItemId)]
+  const [item] = ids.splice(from, 1)
+  ids.splice(i, 0, item)
+  try { await roomApi.reorderBatch(ids); await loadQueue() } catch {}
 }
 function onDragEnd() { dragIndex.value = null; dragOverIndex.value = null }
 
 // --- Auto-scroll playlist to current ---
 const playlistContainer = ref<HTMLElement | null>(null)
-watch(() => player.currentIndex, async (idx) => {
-  if (idx < 0 || !playlistContainer.value) return
+watch(() => player.currentQueueItemId, async (qid) => {
+  if (qid == null || !playlistContainer.value) return
   await nextTick()
-  const el = playlistContainer.value.querySelector(`[data-playlist="${idx}"]`) as HTMLElement
+  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${qid}"]`) as HTMLElement
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
 })
 
@@ -355,9 +338,9 @@ onUnmounted(() => {
               <p class="text-on-surface-variant">{{ player.currentTrack.artist }}</p>
             </div>
             <button
-              class="p-3 bg-primary text-white rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 px-6 font-bold"
+              class="p-3 bg-primary-container dark:bg-[var(--d-primary-container)] text-on-primary-container dark:text-[var(--d-primary)] rounded-full hover:opacity-90 transition-opacity flex items-center gap-2 px-6 font-bold border-2 border-white dark:border-[var(--d-outline-variant)] shadow-sm hover:shadow-md"
               @click="player.isSongOwner && playbackApi.next().then(() => loadPlaybackState())"
-              :class="{ 'opacity-30 pointer-events-none': !player.isSongOwner || player.currentIndex >= player.queue.length - 1 }"
+              :class="{ 'opacity-30 pointer-events-none': !player.isSongOwner }"
               :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
             >
               <span class="material-symbols-outlined">skip_next</span> 切歌
@@ -393,11 +376,11 @@ onUnmounted(() => {
       <div ref="playlistContainer" class="rounded-xl overflow-hidden">
         <div
           v-for="(item, index) in displayQueue"
-          :key="item.songId"
-          :data-playlist="index"
+          :key="item.queueItemId"
+          :data-playlist-qid="item.queueItemId"
           class="flex items-center px-8 py-5 hover:glass hover:shadow-lg hover:scale-[1.02] transition-all duration-300 group cursor-pointer"
           :class="[
-            player.currentTrack?.songId === item.songId ? 'bg-primary/5' : '',
+            player.currentQueueItemId === item.queueItemId ? 'bg-primary/5' : '',
             dragOverIndex === index ? 'border-t-2 border-primary' : '',
             dragIndex === index ? 'opacity-40' : '',
           ]"
@@ -407,14 +390,14 @@ onUnmounted(() => {
           @dragleave="onDragLeave"
           @drop="onDrop(index, $event)"
           @dragend="onDragEnd"
-          @click="playSong(item.songId)"
+          @click="playSong(item.queueItemId)"
         >
           <span class="material-symbols-outlined text-slate-300 text-sm cursor-grab active:cursor-grabbing mr-3 opacity-0 group-hover:opacity-100 transition-opacity">drag_indicator</span>
           <span
             class="w-8 font-bold"
-            :class="player.currentTrack?.songId === item.songId ? 'text-primary' : 'text-slate-400'"
+            :class="player.currentQueueItemId === item.queueItemId ? 'text-primary' : 'text-slate-400'"
           >
-            <span v-if="player.currentTrack?.songId === item.songId && player.isPlaying" class="material-symbols-outlined text-sm align-middle">equalizer</span>
+            <span v-if="player.currentQueueItemId === item.queueItemId && player.isPlaying" class="material-symbols-outlined text-sm align-middle">equalizer</span>
             <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
           </span>
           <img
@@ -424,7 +407,7 @@ onUnmounted(() => {
             @error="($event.target as HTMLImageElement).src = API_BASE + '/uploads/covers/default.jpg'"
           />
           <div class="flex-grow grid grid-cols-3 items-center">
-            <span class="font-bold" :class="{ 'text-primary': player.currentTrack?.songId === item.songId }">{{ item.songTitle }}</span>
+            <span class="font-bold" :class="{ 'text-primary': player.currentQueueItemId === item.queueItemId }">{{ item.songTitle }}</span>
             <span class="text-on-surface-variant">{{ item.artist }}</span>
             <div class="flex items-center justify-between">
               <span class="text-sm text-slate-400">点播者: {{ item.orderedBy }}</span>
@@ -439,6 +422,7 @@ onUnmounted(() => {
                   >favorite</span>
                 </button>
                 <button
+                  v-if="auth.user?.id === item.orderedByUserId"
                   @click.stop="removeFromQueue(item.id)"
                   class="text-error hover:scale-110 transition-transform opacity-0 group-hover:opacity-100 transition-opacity"
                 >
@@ -458,7 +442,7 @@ onUnmounted(() => {
     </div>
 
     <!-- Right: Chat panel -->
-    <div class="w-80 flex-shrink-0 glass rounded-xl shadow-sm flex flex-col" style="height: calc(100vh - 200px)">
+    <div class="w-80 flex-shrink-0 glass rounded-xl shadow-sm flex flex-col sticky top-24" style="height: calc(100vh - 200px)">
       <div class="p-4 border-b border-surface-container-highest">
         <h3 class="font-bold text-on-surface flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-xl">chat</span>
@@ -495,7 +479,7 @@ onUnmounted(() => {
           />
           <button
             type="submit"
-            class="px-4 py-2.5 bg-primary text-on-primary rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            class="px-4 py-2.5 bg-primary-container dark:bg-[var(--d-primary-container)] text-on-primary-container dark:text-[var(--d-primary)] rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
           >
             <span class="material-symbols-outlined text-lg">send</span>
           </button>

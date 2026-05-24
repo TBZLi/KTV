@@ -13,11 +13,16 @@ public class AuthController : ControllerBase
 {
     private readonly AuthService _authService;
     private readonly IUserRepository _userRepo;
+    private readonly IFavoriteRepository _favoriteRepo;
+    private readonly IPlayQueueRepository _queueRepo;
 
-    public AuthController(AuthService authService, IUserRepository userRepo)
+    public AuthController(AuthService authService, IUserRepository userRepo,
+        IFavoriteRepository favoriteRepo, IPlayQueueRepository queueRepo)
     {
         _authService = authService;
         _userRepo = userRepo;
+        _favoriteRepo = favoriteRepo;
+        _queueRepo = queueRepo;
     }
 
     [HttpPost("login")]
@@ -86,5 +91,69 @@ public class AuthController : ControllerBase
         var valid = await _authService.VerifyPasswordAsync(userId, request.Password);
         if (!valid) return Unauthorized(new { message = "密码错误" });
         return Ok();
+    }
+
+    private int GetUserId() =>
+        int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+    [HttpGet("profile")]
+    [Authorize]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userId = GetUserId();
+        var user = await _userRepo.GetByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        var songCount = await _queueRepo.GetCountByUserIdAsync(userId);
+        var favorites = await _favoriteRepo.GetByUserIdAsync(userId);
+
+        return Ok(new UserProfileResponse(
+            user.Id, user.Username, user.DisplayName, user.Phone, user.Email,
+            user.AvatarUrl, user.CreatedAt, songCount, favorites.Count));
+    }
+
+    [HttpPut("profile")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userId = GetUserId();
+        var user = await _userRepo.GetByIdAsync(userId);
+        if (user == null) return NotFound();
+
+        if (!string.IsNullOrWhiteSpace(request.DisplayName))
+            user.DisplayName = request.DisplayName;
+        user.Phone = request.Phone;
+        user.Email = request.Email;
+        user.UpdatedAt = DateTime.Now;
+
+        await _userRepo.UpdateAsync(user);
+        return Ok(new { message = "资料已更新" });
+    }
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] UserChangePasswordRequest request)
+    {
+        var userId = GetUserId();
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest(new { message = "新密码不能为空" });
+
+        var valid = await _authService.VerifyPasswordAsync(userId, request.OldPassword);
+        if (!valid) return Unauthorized(new { message = "原密码错误" });
+
+        await _userRepo.UpdatePasswordAsync(userId, request.NewPassword);
+        return Ok(new { message = "密码已修改" });
+    }
+
+    [HttpGet("recent-songs")]
+    [Authorize]
+    public async Task<IActionResult> GetRecentSongs([FromQuery] int count = 5)
+    {
+        var userId = GetUserId();
+        var items = await _queueRepo.GetRecentByUserIdAsync(userId, count);
+        var result = items.Select(i => new RecentSongDto(
+            i.SongId, i.SongTitle, i.Artist, i.CoverUrl, i.CreatedAt, i.Status));
+        return Ok(result);
     }
 }

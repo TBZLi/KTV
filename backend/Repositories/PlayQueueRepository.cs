@@ -26,6 +26,19 @@ public class PlayQueueRepository : IPlayQueueRepository
         return items.ToList();
     }
 
+    public async Task<PlayQueueItem?> GetByIdAsync(int id)
+    {
+        using var conn = CreateConnection();
+        return await conn.QuerySingleOrDefaultAsync<PlayQueueItem>(
+            @"SELECT pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl, s.MediaUrl, s.LrcUrl,
+                     pq.OrderedByUserId, u.DisplayName AS OrderedBy, pq.SortOrder, pq.Status, pq.CreatedAt
+              FROM PlayQueue pq
+              INNER JOIN Songs s ON pq.SongId = s.Id
+              INNER JOIN Users u ON pq.OrderedByUserId = u.Id
+              WHERE pq.Id = @Id",
+            new { Id = id });
+    }
+
     public async Task<int> AddAsync(PlayQueueItem item)
     {
         using var conn = CreateConnection();
@@ -85,5 +98,28 @@ public class PlayQueueRepository : IPlayQueueRepository
         await conn.ExecuteAsync(
             "UPDATE PlayQueue SET Status = 'played' WHERE RoomId = @RoomId AND Status = 'queued'",
             new { RoomId = roomId });
+    }
+
+    public async Task<int> GetCountByUserIdAsync(int userId)
+    {
+        using var conn = CreateConnection();
+        return await conn.ExecuteScalarAsync<int>(
+            "SELECT COUNT(*) FROM PlayQueue WHERE OrderedByUserId = @UserId AND Status = 'played'",
+            new { UserId = userId });
+    }
+
+    public async Task<List<PlayQueueItem>> GetRecentByUserIdAsync(int userId, int count)
+    {
+        using var conn = CreateConnection();
+        var items = await conn.QueryAsync<PlayQueueItem>(
+            @"SELECT TOP(@Count) pq.Id, pq.RoomId, pq.SongId, s.Title AS SongTitle, s.Artist, s.CoverUrl,
+                     pq.OrderedByUserId, u.DisplayName AS OrderedBy, pq.Status, pq.CreatedAt
+              FROM PlayQueue pq
+              INNER JOIN Songs s ON pq.SongId = s.Id
+              INNER JOIN Users u ON pq.OrderedByUserId = u.Id
+              WHERE pq.OrderedByUserId = @UserId
+              ORDER BY pq.CreatedAt DESC",
+            new { UserId = userId, Count = count });
+        return items.ToList();
     }
 }

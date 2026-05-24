@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
-import { favoritesApi, chatApi, playbackApi } from '@/api'
+import { favoritesApi, chatApi, playbackApi, roomApi } from '@/api'
 import { parseLrc, findCurrentLine, type LyricLine } from '@/utils/lrcParser'
 
 const player = usePlayerStore()
@@ -10,12 +10,12 @@ const auth = useAuthStore()
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const showLyrics = ref(false)
-const isDraggingProgress = ref(false)
 
 // --- Lyrics ---
 const lyrics = ref<LyricLine[]>([])
 const lyricsContainer = ref<HTMLElement | null>(null)
-const currentLine = computed(() => findCurrentLine(lyrics.value, player.currentTime))
+const lyricsOffset = ref(0)
+const currentLine = computed(() => findCurrentLine(lyrics.value, player.currentTime + lyricsOffset.value))
 
 async function fetchLyrics(lrcUrl: string) {
   try {
@@ -67,6 +67,11 @@ async function apiTogglePlayMode() {
 }
 async function apiSeek(position: number) {
   await playbackApi.seek(position)
+}
+
+function seekAndSync(position: number) {
+  player.seek(position)
+  apiSeek(position)
 }
 
 // --- Wheel handler for lyrics overlay ---
@@ -181,37 +186,37 @@ async function sendChatMessage() {
 onMounted(() => { chatPollTimer = setInterval(loadChatMessages, 2000) })
 onUnmounted(() => { if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null } })
 
-// --- Drag reorder ---
+// --- Drag reorder (server-side only) ---
 const dragIndex = ref<number | null>(null)
 const dragOverIndex = ref<number | null>(null)
 function onDragStart(i: number, e: DragEvent) {
-  if (i === player.currentIndex) { return }
   dragIndex.value = i; if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
 }
 function onDragOver(i: number, e: DragEvent) {
   e.preventDefault()
-  if (e.dataTransfer) e.dataTransfer.dropEffect = i === player.currentIndex ? 'none' : 'move'
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
   dragOverIndex.value = i
 }
 function onDragLeave() { dragOverIndex.value = null }
-function onDrop(i: number, e: DragEvent) {
+async function onDrop(i: number, e: DragEvent) {
   e.preventDefault()
-  if (i === player.currentIndex) { dragIndex.value = null; dragOverIndex.value = null; return }
   if (dragIndex.value === null || dragIndex.value === i) { dragIndex.value = null; dragOverIndex.value = null; return }
   const from = dragIndex.value
-  const [item] = player.queue.splice(from, 1)
-  player.queue.splice(i, 0, item)
-  player.currentIndex = 0
   dragIndex.value = null; dragOverIndex.value = null
+
+  const ids = [...player.queue.map(t => t.queueItemId)]
+  const [item] = ids.splice(from, 1)
+  ids.splice(i, 0, item)
+  try { await roomApi.reorderBatch(ids) } catch {}
 }
 function onDragEnd() { dragIndex.value = null; dragOverIndex.value = null }
 
 // --- Auto-scroll playlist to current ---
 const playlistContainer = ref<HTMLElement | null>(null)
-watch(() => player.currentIndex, async (idx) => {
-  if (idx < 0 || !playlistContainer.value) return
+watch(() => player.currentQueueItemId, async (qid) => {
+  if (qid == null || !playlistContainer.value) return
   await nextTick()
-  const el = playlistContainer.value.querySelector(`[data-playlist="${idx}"]`) as HTMLElement
+  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${qid}"]`) as HTMLElement
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
 })
 
@@ -244,14 +249,13 @@ function onProgressClick(e: MouseEvent) {
 
 function onProgressMousedown(e: MouseEvent) {
   if (!player.hasTrack || !player.isSongOwner) return
-  isDraggingProgress.value = true
+  player.isDragging = true
   const bar = e.currentTarget as HTMLElement
   let lastSeekTime = 0
   const onMove = (ev: MouseEvent) => {
     const rect = bar.getBoundingClientRect()
     const pos = Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)) * player.duration
-    player.seek(pos) // Optimistic local update
-    // Throttle API calls to max 2/sec
+    player.seek(pos)
     const now = Date.now()
     if (now - lastSeekTime > 500) {
       lastSeekTime = now
@@ -259,10 +263,7 @@ function onProgressMousedown(e: MouseEvent) {
     }
   }
   const onUp = () => {
-    isDraggingProgress.value = false
-    // Final seek on release
-    const rect = bar.getBoundingClientRect()
-    // Use last known position from the move handler
+    player.isDragging = false
     apiSeek(player.currentTime)
     window.removeEventListener('mousemove', onMove)
     window.removeEventListener('mouseup', onUp)
@@ -283,9 +284,9 @@ const coverSrc = computed(() =>
 
 <template>
   <!-- ====== 胶囊播放器 ====== -->
-  <footer class="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white/80 backdrop-blur-2xl rounded-full pl-2 pr-6 py-2 shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-all duration-500"
+  <footer class="player-capsule fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 bg-white/80 backdrop-blur-2xl rounded-full pl-2 pr-6 py-2 shadow-[0_8px_40px_rgba(0,0,0,0.12)] transition-all duration-500"
     :class="showLyrics ? 'opacity-0 pointer-events-none translate-y-4' : 'opacity-100'"
-    style="max-width: 560px;">
+    style="max-width: 610px;">
 
     <!-- Cover (click to open lyrics) -->
     <div class="shrink-0" :class="player.hasTrack ? 'cursor-pointer' : 'cursor-default'" @click="openLyrics">
@@ -304,16 +305,16 @@ const coverSrc = computed(() =>
 
     <!-- Info + progress -->
     <div class="flex-1 min-w-0">
-      <p v-if="player.hasTrack" class="text-sm font-bold truncate">
-        {{ player.currentTrack.title }} <span class="font-normal text-slate-500">- {{ player.currentTrack.artist }}</span>
-        <span v-if="player.currentTrack.orderedByName" class="ml-1 text-[10px] font-normal text-primary/60">{{ player.currentTrack.orderedByName }} 的歌</span>
+      <p v-if="player.hasTrack" class="text-sm font-bold truncate dark:text-[var(--d-on-surface)]">
+        {{ player.currentTrack.title }} <span class="font-normal text-slate-500 dark:text-[var(--d-on-surface-variant)]">- {{ player.currentTrack.artist }}</span>
+        <span v-if="player.currentTrack.orderedByName" class="ml-1 text-[10px] font-normal text-primary/60 dark:text-[var(--d-primary-container)]">{{ player.currentTrack.orderedByName }} 的歌</span>
       </p>
-      <p v-else class="text-sm text-slate-400 truncate">未在播放</p>
+      <p v-else class="text-sm text-slate-400 dark:text-[var(--d-on-surface-variant)] truncate">未在播放</p>
       <div
-        class="mt-1.5 h-1 w-full bg-slate-200/60 rounded-full group"
+        class="progress-track mt-1.5 h-1 w-full bg-slate-200/60 rounded-full group"
         :class="player.isSongOwner ? 'cursor-pointer' : 'cursor-default'"
-        @click.stop="player.isSongOwner && onProgressClick()"
-        @mousedown.stop="player.isSongOwner && onProgressMousedown()"
+        @click.stop="player.isSongOwner && onProgressClick($event)"
+        @mousedown.stop="player.isSongOwner && onProgressMousedown($event)"
       >
         <div class="h-full bg-gradient-to-r from-primary to-secondary rounded-full relative transition-all" :style="{ width: progressPercent + '%' }">
           <div v-if="player.isSongOwner" class="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -326,8 +327,8 @@ const coverSrc = computed(() =>
       <button
         class="w-8 h-8 flex items-center justify-center transition-colors rounded-full press-scale"
         :class="[
-          player.isSongOwner ? 'text-slate-400 hover:text-on-surface hover:bg-slate-100' : 'text-slate-200 cursor-not-allowed',
-          (!player.hasTrack || player.currentIndex <= 0) ? 'opacity-30 pointer-events-none' : ''
+          player.isSongOwner ? 'text-slate-400 dark:text-[var(--d-on-surface-variant)] hover:text-on-surface dark:hover:text-[var(--d-on-surface)] hover:bg-slate-100 dark:hover:bg-[var(--d-hover-bg)]' : 'text-slate-200 dark:text-[var(--d-outline-variant)] cursor-not-allowed',
+          (!player.hasTrack || player.queue.length <= 1) ? 'opacity-30 pointer-events-none' : ''
         ]"
         :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
         @click="player.isSongOwner && apiPlayPrev()"
@@ -337,7 +338,7 @@ const coverSrc = computed(() =>
       <button
         class="w-10 h-10 flex items-center justify-center hover:scale-110 transition-transform press-scale"
         :class="[
-          player.isSongOwner ? 'text-primary' : 'text-slate-300 cursor-not-allowed',
+          player.isSongOwner ? 'text-on-primary-container dark:text-[var(--d-primary)]' : 'text-slate-300 dark:text-[var(--d-outline)] cursor-not-allowed',
           !player.hasTrack ? 'opacity-30 pointer-events-none' : ''
         ]"
         :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
@@ -350,18 +351,29 @@ const coverSrc = computed(() =>
       <button
         class="w-8 h-8 flex items-center justify-center transition-colors rounded-full press-scale"
         :class="[
-          player.isSongOwner ? 'text-slate-400 hover:text-on-surface hover:bg-slate-100' : 'text-slate-200 cursor-not-allowed',
-          (!player.hasTrack || player.currentIndex >= player.queue.length - 1) ? 'opacity-30 pointer-events-none' : ''
+          player.isSongOwner ? 'text-slate-400 dark:text-[var(--d-on-surface-variant)] hover:text-on-surface dark:hover:text-[var(--d-on-surface)] hover:bg-slate-100 dark:hover:bg-[var(--d-hover-bg)]' : 'text-slate-200 dark:text-[var(--d-outline-variant)] cursor-not-allowed',
+          (!player.hasTrack || player.queue.length <= 1) ? 'opacity-30 pointer-events-none' : ''
         ]"
         :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : ''"
         @click="player.isSongOwner && apiPlayNext()"
       >
         <span class="material-symbols-outlined text-xl">skip_next</span>
       </button>
+      <button
+        class="w-8 h-8 flex items-center justify-center transition-colors rounded-full press-scale relative group"
+        :class="[
+          player.isSongOwner ? 'text-slate-400 dark:text-[var(--d-on-surface-variant)] hover:text-on-surface dark:hover:text-[var(--d-on-surface)] hover:bg-slate-100 dark:hover:bg-[var(--d-hover-bg)]' : 'text-slate-200 dark:text-[var(--d-outline-variant)] cursor-not-allowed',
+          !player.hasTrack ? 'opacity-30 pointer-events-none' : ''
+        ]"
+        :title="!player.isSongOwner && player.hasTrack ? '仅点歌人可控制' : playModeLabel"
+        @click="player.isSongOwner && apiTogglePlayMode()"
+      >
+        <span class="material-symbols-outlined text-xl" :class="player.playMode !== 'off' ? 'text-primary dark:text-[var(--d-primary)]' : ''">{{ playModeIcon }}</span>
+      </button>
     </div>
 
     <!-- Time -->
-    <span v-if="player.hasTrack" class="text-[10px] text-slate-400 font-mono tabular-nums shrink-0">{{ formatTime(player.currentTime) }}</span>
+    <span v-if="player.hasTrack" class="text-[10px] text-slate-400 dark:text-[var(--d-on-surface-variant)] font-mono tabular-nums shrink-0">{{ formatTime(player.currentTime) }}</span>
   </footer>
 
   <!-- ====== 歌词页全屏覆盖 ====== -->
@@ -407,11 +419,50 @@ const coverSrc = computed(() =>
           <div
             class="h-1.5 w-full bg-white/20 rounded-full group"
             :class="player.isSongOwner ? 'cursor-pointer' : 'cursor-default'"
-            @click="player.isSongOwner && onProgressClick()"
-            @mousedown="player.isSongOwner && onProgressMousedown()"
+            @click="player.isSongOwner && onProgressClick($event)"
+            @mousedown="player.isSongOwner && onProgressMousedown($event)"
           >
             <div class="h-full bg-white rounded-r-full relative transition-all" :style="{ width: progressPercent + '%' }">
               <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white border-2 border-white rounded-full shadow-md opacity-0 group-hover:opacity-100 transition-opacity -mr-1"></div>
+            </div>
+          </div>
+          <!-- 进度微调 + 歌词微调 -->
+          <div class="flex items-center justify-center gap-6 mt-3">
+            <div class="flex items-center gap-2">
+              <button
+                class="flex items-center gap-0.5 text-[10px] text-white/30 hover:text-white/70 transition-colors press-scale"
+                :class="{ 'pointer-events-none': !player.isSongOwner }"
+                @click="player.isSongOwner && seekAndSync(Math.max(0, player.currentTime - 1))"
+              >
+                <span class="material-symbols-outlined text-sm">replay_5</span>
+                <span>-1s</span>
+              </button>
+              <span class="text-white/15 text-[10px]">进度</span>
+              <button
+                class="flex items-center gap-0.5 text-[10px] text-white/30 hover:text-white/70 transition-colors press-scale"
+                :class="{ 'pointer-events-none': !player.isSongOwner }"
+                @click="player.isSongOwner && seekAndSync(Math.min(player.duration, player.currentTime + 1))"
+              >
+                <span class="material-symbols-outlined text-sm">forward_5</span>
+                <span>+1s</span>
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <button
+                class="flex items-center gap-0.5 text-[10px] text-white/30 hover:text-white/70 transition-colors press-scale"
+                @click="lyricsOffset -= 0.5"
+              >
+                <span class="material-symbols-outlined text-sm">text_decrease</span>
+                <span>-0.5s</span>
+              </button>
+              <span class="text-white/15 text-[10px]">歌词{{ lyricsOffset !== 0 ? ` ${lyricsOffset > 0 ? '+' : ''}${lyricsOffset.toFixed(1)}s` : '' }}</span>
+              <button
+                class="flex items-center gap-0.5 text-[10px] text-white/30 hover:text-white/70 transition-colors press-scale"
+                @click="lyricsOffset += 0.5"
+              >
+                <span class="material-symbols-outlined text-sm">text_increase</span>
+                <span>+0.5s</span>
+              </button>
             </div>
           </div>
         </div>
@@ -434,7 +485,7 @@ const coverSrc = computed(() =>
             @click="player.isSongOwner && apiPlayPrev()">
             <span class="material-symbols-outlined text-3xl">skip_previous</span>
           </button>
-          <button class="w-16 h-16 rounded-full bg-white text-slate-900 flex items-center justify-center hover:scale-105 transition-transform shadow-lg press-scale"
+          <button class="w-16 h-16 rounded-full bg-gradient-to-br from-[#71fcfe] to-[#4fb3ff] text-slate-900 flex items-center justify-center hover:scale-105 transition-transform shadow-lg shadow-[#71fcfe]/30 press-scale"
             :class="{ 'opacity-40': !player.isSongOwner }"
             :title="!player.isSongOwner ? '仅点歌人可控制' : ''"
             @click="player.isSongOwner && apiTogglePlay()">
@@ -540,11 +591,11 @@ const coverSrc = computed(() =>
               <span class="text-white/30 text-xs ml-1">{{ player.queue.length }} 首</span>
             </div>
             <div ref="playlistContainer" class="flex-1 overflow-y-auto scrollbar-hide px-3 pb-4 min-h-0">
-              <div v-for="(track, i) in player.queue" :key="track.songId"
-                :data-playlist="i"
+              <div v-for="(track, i) in player.queue" :key="track.queueItemId"
+                :data-playlist-qid="track.queueItemId"
                 class="flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all mb-1 group"
                 :class="[
-                  i === player.currentIndex ? 'bg-white/10' : 'hover:bg-white/5',
+                  player.currentQueueItemId === track.queueItemId ? 'bg-white/10' : 'hover:bg-white/5',
                   dragOverIndex === i ? 'border-t-2 border-[#71fcfe]' : '',
                   dragIndex === i ? 'opacity-40' : ''
                 ]"
@@ -562,10 +613,10 @@ const coverSrc = computed(() =>
                   class="w-8 h-8 rounded object-cover flex-shrink-0"
                 />
                 <div class="min-w-0 flex-1">
-                  <p class="text-xs truncate" :class="i === player.currentIndex ? 'text-white font-bold' : 'text-white/60'">
+                  <p class="text-xs truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-white font-bold' : 'text-white/60'">
                     {{ track.title }}
                   </p>
-                  <p class="text-[10px] truncate" :class="i === player.currentIndex ? 'text-white/50' : 'text-white/25'">
+                  <p class="text-[10px] truncate" :class="player.currentQueueItemId === track.queueItemId ? 'text-white/50' : 'text-white/25'">
                     {{ track.artist }}
                   </p>
                 </div>

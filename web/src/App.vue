@@ -1,18 +1,35 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import SideNavBar from '@/components/layout/SideNavBar.vue'
 import TopNavBar from '@/components/layout/TopNavBar.vue'
 import BottomPlayerBar from '@/components/layout/BottomPlayerBar.vue'
 
 const route = useRoute()
-const isAuthPage = computed(() => route.name === 'Login' || route.name === 'Register')
+const router = useRouter()
+const isAuthPage = computed(() => ['Login', 'Register', 'Profile', 'Notifications', 'Privacy', 'About'].includes(route.name as string))
 const sidebarCollapsed = ref(false)
+const isDark = ref(false)
+
+onMounted(() => {
+  isDark.value = localStorage.getItem('theme') === 'dark'
+  const observer = new MutationObserver(() => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  })
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+
+function onAuthExpired() {
+  router.push('/login')
+}
+
+onMounted(() => window.addEventListener('auth:expired', onAuthExpired))
+onUnmounted(() => window.removeEventListener('auth:expired', onAuthExpired))
 </script>
 
 <template>
   <!-- 流光背景色块 -->
-  <div class="blob-container">
+  <div class="blob-container dark:opacity-20 transition-opacity duration-500">
     <div class="blob blob-1" />
     <div class="blob blob-2" />
     <div class="blob blob-3" />

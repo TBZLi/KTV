@@ -42,6 +42,36 @@ const router = createRouter({
       meta: { title: '当前房间', icon: 'meeting_room', requiresAuth: true },
     },
     {
+      path: '/rooms',
+      name: 'RoomList',
+      component: () => import('@/views/RoomListView.vue'),
+      meta: { title: '房间列表', icon: 'meeting_room', requiresAuth: true },
+    },
+    {
+      path: '/profile',
+      name: 'Profile',
+      component: () => import('@/views/UserProfileView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/notifications',
+      name: 'Notifications',
+      component: () => import('@/views/NotificationsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/privacy',
+      name: 'Privacy',
+      component: () => import('@/views/PrivacyView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/about',
+      name: 'About',
+      component: () => import('@/views/AboutView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/:pathMatch(.*)*',
       redirect: '/explore',
     },

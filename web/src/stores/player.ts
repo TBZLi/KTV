@@ -31,6 +31,7 @@ export const usePlayerStore = defineStore('player', () => {
   const syncMode = ref(false)
   const currentUserId = ref<number | null>(null)
   const currentQueueItemId = ref<number | null>(null)
+  const isDragging = ref(false)
 
   const currentTrack = computed(() =>
     currentIndex.value >= 0 && currentIndex.value < queue.value.length
@@ -152,11 +153,13 @@ export const usePlayerStore = defineStore('player', () => {
     if (state.isPlaying && audio.paused) play()
     else if (!state.isPlaying && !audio.paused) pause()
 
-    // Time sync (drift > 2s when playing, > 0.5s when paused)
-    if (state.isPlaying) {
-      if (Math.abs(audio.currentTime - state.currentTime) > 2) seek(state.currentTime)
-    } else {
-      if (Math.abs(audio.currentTime - state.currentTime) > 0.5) seek(state.currentTime)
+    // Time sync (drift > 2s when playing, > 0.5s when paused) — skip during drag
+    if (!isDragging.value) {
+      if (state.isPlaying) {
+        if (Math.abs(audio.currentTime - state.currentTime) > 2) seek(state.currentTime)
+      } else {
+        if (Math.abs(audio.currentTime - state.currentTime) > 0.5) seek(state.currentTime)
+      }
     }
 
     // Play mode sync
@@ -209,6 +212,7 @@ export const usePlayerStore = defineStore('player', () => {
     songOwnerUserId,
     isSongOwner,
     currentQueueItemId,
+    isDragging,
     play,
     pause,
     seek,

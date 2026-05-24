@@ -59,6 +59,19 @@ export const chatApi = {
     apiClient.get<{ id: number; nickname: string; message: string; timestamp: string }[]>('/api/chat/messages', { params: { roomId } }),
 }
 
+export const profileApi = {
+  getProfile: () => apiClient.get('/api/auth/profile'),
+  getRecentSongs: (count: number) => apiClient.get('/api/auth/recent-songs', { params: { count } }),
+  updateProfile: (data: any) => apiClient.put('/api/auth/profile', data),
+  changePassword: (oldPassword: string, newPassword: string) =>
+    apiClient.post('/api/auth/change-password', { oldPassword, newPassword }),
+}
+
+export const roomsApi = {
+  getList: (params?: { search?: string }) =>
+    apiClient.get('/api/rooms', { params }),
+}
+
 export const playbackApi = {
   getState: () => apiClient.get<PlaybackState>('/api/room/playback'),
   play: (queueItemId: number) => apiClient.post('/api/room/playback/play', { queueItemId }),
