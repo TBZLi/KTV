@@ -6,8 +6,15 @@
   body {
     @apply font-body text-on-surface antialiased;
     background: #ffffff;
-    min-width: 1024px;
+    min-height: 100vh;
+    overflow-x: auto;
+  }
+
+  .app-shell {
+    min-width: 720px;
     min-height: 600px;
+    width: 100%;
+    margin: 0 auto;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-headline;

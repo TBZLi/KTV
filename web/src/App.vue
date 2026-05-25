@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import SideNavBar from '@/components/layout/SideNavBar.vue'
 import TopNavBar from '@/components/layout/TopNavBar.vue'
 import BottomPlayerBar from '@/components/layout/BottomPlayerBar.vue'
@@ -20,6 +21,8 @@ onMounted(() => {
 })
 
 function onAuthExpired() {
+  const authStore = useAuthStore()
+  authStore.logout()
   router.push('/login')
 }
 
@@ -41,7 +44,7 @@ onUnmounted(() => window.removeEventListener('auth:expired', onAuthExpired))
     <router-view />
   </template>
   <template v-else>
-    <div style="position: relative; z-index: 1;">
+    <div class="app-shell" style="position: relative; z-index: 1;">
       <TopNavBar />
       <SideNavBar :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = !sidebarCollapsed" />
       <main class="pt-24 px-10 pb-28 transition-all duration-300" :class="sidebarCollapsed ? 'ml-20' : 'ml-64'">

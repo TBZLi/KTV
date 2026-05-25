@@ -4,9 +4,15 @@ import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
 import { favoritesApi, chatApi, playbackApi, roomApi } from '@/api'
 import { parseLrc, findCurrentLine, type LyricLine } from '@/utils/lrcParser'
+import { useParticleBurst } from '@/composables/useParticleBurst'
+import { useHeartAnimation } from '@/composables/useHeartAnimation'
+import { useSwitchFeedback } from '@/composables/useSwitchFeedback'
 
 const player = usePlayerStore()
 const auth = useAuthStore()
+const { burst } = useParticleBurst()
+const { toggleHeart } = useHeartAnimation()
+const { rowClass, triggerCoverFly } = useSwitchFeedback()
 const API_BASE = import.meta.env.VITE_API_BASE_URL?.replace(/\/api$/, '') || 'https://localhost:5001'
 
 const showLyrics = ref(false)
@@ -150,10 +156,15 @@ const favoriteIds = ref<Set<number>>(new Set())
 async function loadFavorites() {
   try { const res = await favoritesApi.getList(); favoriteIds.value = new Set(res.data.map((f: any) => f.songId)) } catch {}
 }
-async function toggleFavorite(songId: number) {
-  if (favoriteIds.value.has(songId)) { await favoritesApi.remove(songId); favoriteIds.value.delete(songId) }
-  else { await favoritesApi.add(songId); favoriteIds.value.add(songId) }
-  favoriteIds.value = new Set(favoriteIds.value)
+async function toggleFavorite(songId: number, event: MouseEvent) {
+  const btn = event.currentTarget as HTMLElement
+  const wasFav = favoriteIds.value.has(songId)
+  if (!wasFav) burst(btn)
+  toggleHeart(btn, !wasFav, async () => {
+    if (wasFav) { await favoritesApi.remove(songId); favoriteIds.value.delete(songId) }
+    else { await favoritesApi.add(songId); favoriteIds.value.add(songId) }
+    favoriteIds.value = new Set(favoriteIds.value)
+  })
 }
 onMounted(loadFavorites)
 
@@ -211,13 +222,18 @@ async function onDrop(i: number, e: DragEvent) {
 }
 function onDragEnd() { dragIndex.value = null; dragOverIndex.value = null }
 
-// --- Auto-scroll playlist to current ---
+// --- Auto-scroll playlist to current + cover fly ---
 const playlistContainer = ref<HTMLElement | null>(null)
-watch(() => player.currentQueueItemId, async (qid) => {
-  if (qid == null || !playlistContainer.value) return
+const heroCoverRef = ref<HTMLElement | null>(null)
+watch(() => player.currentQueueItemId, async (newQid, oldQid) => {
+  if (newQid == null || !playlistContainer.value) return
   await nextTick()
-  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${qid}"]`) as HTMLElement
+  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${newQid}"]`) as HTMLElement
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  // Cover fly: animate to hero cover in lyrics overlay
+  if (oldQid != null && newQid !== oldQid && heroCoverRef.value) {
+    triggerCoverFly(playlistContainer.value, heroCoverRef.value)
+  }
 })
 
 // --- Keydown ---
@@ -370,6 +386,18 @@ const coverSrc = computed(() =>
       >
         <span class="material-symbols-outlined text-xl" :class="player.playMode !== 'off' ? 'text-primary dark:text-[var(--d-primary)]' : ''">{{ playModeIcon }}</span>
       </button>
+      <!-- Favorite -->
+      <button
+        v-if="player.hasTrack"
+        class="heart-btn w-12 h-12 flex items-center justify-center transition-colors rounded-full press-scale text-slate-400 dark:text-[var(--d-on-surface-variant)] hover:text-on-surface dark:hover:text-[var(--d-on-surface)] hover:bg-slate-100 dark:hover:bg-[var(--d-hover-bg)]"
+        :class="{ 'is-fav': favoriteIds.has(player.currentTrack.songId) }"
+        @click="toggleFavorite(player.currentTrack.songId, $event)"
+      >
+        <div class="heart-icon relative w-6 h-6">
+          <svg viewBox="0 0 24 24" class="absolute inset-0 w-full h-full"><path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+          <svg viewBox="0 0 24 24" class="heart-fill-svg absolute inset-0 w-full h-full"><path class="heart-fill-path" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </div>
+      </button>
     </div>
 
     <!-- Time -->
@@ -396,6 +424,7 @@ const coverSrc = computed(() =>
 
         <!-- 大封面 -->
         <img
+          ref="heroCoverRef"
           :src="coverSrc"
           class="w-56 h-56 object-cover shadow-2xl shadow-black/40 transition-all duration-700"
           :class="player.isPlaying ? 'rounded-[45%]' : 'rounded-full'"
@@ -408,6 +437,18 @@ const coverSrc = computed(() =>
           <h2 class="text-2xl font-bold text-white">{{ player.currentTrack?.title ?? '未在播放' }}</h2>
           <p class="text-white/50 mt-1">{{ player.currentTrack?.artist }}</p>
           <p v-if="player.currentTrack?.orderedByName" class="text-[#71fcfe]/50 text-xs mt-1">{{ player.currentTrack.orderedByName }} 的歌</p>
+          <!-- Favorite -->
+          <button
+            v-if="player.hasTrack"
+            class="heart-btn mt-3 w-[60px] h-[60px] flex items-center justify-center rounded-full hover:bg-white/10 transition-colors mx-auto"
+            :class="{ 'is-fav': favoriteIds.has(player.currentTrack.songId) }"
+            @click="toggleFavorite(player.currentTrack.songId, $event)"
+          >
+            <div class="heart-icon relative w-[30px] h-[30px]">
+              <svg viewBox="0 0 24 24" class="absolute inset-0 w-full h-full"><path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              <svg viewBox="0 0 24 24" class="heart-fill-svg absolute inset-0 w-full h-full"><path class="heart-fill-path" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </div>
+          </button>
         </div>
 
         <!-- 进度条 -->
@@ -597,7 +638,8 @@ const coverSrc = computed(() =>
                 :class="[
                   player.currentQueueItemId === track.queueItemId ? 'bg-white/20 ring-1 ring-[#71fcfe]/40' : 'hover:bg-white/5',
                   dragOverIndex === i ? 'border-t-2 border-[#71fcfe]' : '',
-                  dragIndex === i ? 'opacity-40' : ''
+                  dragIndex === i ? 'opacity-40' : '',
+                  rowClass(track.queueItemId),
                 ]"
                 draggable="true"
                 @dragstart="onDragStart(i, $event)"
@@ -621,13 +663,14 @@ const coverSrc = computed(() =>
                   </p>
                 </div>
                 <button
-                  class="flex-shrink-0 press-scale opacity-0 group-hover:opacity-100 transition-opacity"
-                  @click.stop="toggleFavorite(track.songId)"
+                  class="heart-btn flex-shrink-0 press-scale opacity-0 group-hover:opacity-100 transition-opacity"
+                  :class="{ 'is-fav': favoriteIds.has(track.songId) }"
+                  @click.stop="toggleFavorite(track.songId, $event)"
                 >
-                  <span class="material-symbols-outlined text-sm transition-colors"
-                    :class="favoriteIds.has(track.songId) ? 'text-red-400' : 'text-white/20 hover:text-white/50'"
-                    :style="{ fontVariationSettings: `'FILL' ${favoriteIds.has(track.songId) ? 1 : 0}` }"
-                  >favorite</span>
+                  <div class="heart-icon relative w-4 h-4">
+                    <svg viewBox="0 0 24 24" class="absolute inset-0 w-full h-full"><path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    <svg viewBox="0 0 24 24" class="heart-fill-svg absolute inset-0 w-full h-full"><path class="heart-fill-path" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                  </div>
                 </button>
               </div>
               <p v-if="player.queue.length === 0" class="text-center text-white/15 text-xs py-6">播放列表为空</p>
@@ -651,4 +694,49 @@ const coverSrc = computed(() =>
 }
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* SVG heart */
+.heart-outline { fill: none; stroke: rgba(255,255,255,0.2); stroke-width: 1.5; transition: stroke 0.25s; }
+.heart-fill-svg { opacity: 0; transition: none; }
+.heart-fill-path { fill: #ef4444; }
+.heart-btn.is-fav .heart-fill-svg { opacity: 1; clip-path: circle(75% at 50% 55%); }
+.heart-btn.is-fav .heart-outline { stroke: #ef4444; }
+
+/* ===== Switch feedback (dark theme) ===== */
+.switch-old {
+  animation: switchOld .15s ease forwards;
+}
+@keyframes switchOld {
+  to { opacity: .55; transform: scale(.97); }
+}
+.switch-new {
+  animation: switchNew .4s cubic-bezier(.4,0,.2,1) forwards;
+}
+@keyframes switchNew {
+  0% { opacity: .6; transform: scale(.96) translateY(4px); }
+  50% { opacity: 1; transform: scale(1.01) translateY(0); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.switch-glow {
+  animation: switchGlow .5s ease forwards;
+}
+@keyframes switchGlow {
+  0% { box-shadow: 0 0 0 0 rgba(113,252,254,.15); }
+  40% { box-shadow: 0 0 14px 5px rgba(113,252,254,.15); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.switch-dim {
+  opacity: .8;
+  transition: opacity .15s;
+}
+
+/* Cover catch pulse */
+:global(.cover-catch) {
+  animation: coverCatch .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes coverCatch {
+  0% { transform: scale(.82); }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
 </style>

@@ -35,7 +35,7 @@ export function useSongOrder() {
       }
     } catch (err: any) {
       const msg = err.response?.data?.message || err.response?.data || '点歌失败'
-      alert(msg)
+      window.dispatchEvent(new CustomEvent('song-rejected', { detail: msg }))
     } finally {
       ordering.value = false
     }

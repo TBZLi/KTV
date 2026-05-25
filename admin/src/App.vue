@@ -13,7 +13,7 @@ const isLoginPage = computed(() => route.name === 'Login')
     <router-view />
   </template>
   <template v-else>
-    <div class="flex min-h-screen w-full bg-surface">
+    <div class="app-shell flex min-h-screen w-full bg-surface">
       <SideNavBar />
       <div class="flex-1 ml-64 flex flex-col min-h-screen">
         <TopNavBar />

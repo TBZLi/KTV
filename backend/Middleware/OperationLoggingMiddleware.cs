@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.Json;
 using backend.Models;
 using backend.Repositories;
 
@@ -10,30 +9,23 @@ public class OperationLoggingMiddleware
     private readonly RequestDelegate _next;
     private readonly ILogger<OperationLoggingMiddleware> _logger;
 
-    private static readonly Dictionary<string, (string type, string obj)> RouteMap = new()
-    {
-        ["POST /api/orders"] = ("create", "order"),
-        ["POST /api/orders/*/refund"] = ("refund", "order"),
-        ["POST /api/orders/*/complete"] = ("complete", "order"),
-        ["POST /api/orders/*/cancel"] = ("cancel", "order"),
-        ["POST /api/orders/*/restore"] = ("restore", "order"),
-        ["DELETE /api/orders/*"] = ("delete", "order"),
-        ["POST /api/accounts"] = ("create", "user"),
-        ["PUT /api/accounts/*"] = ("update", "user"),
-        ["POST /api/accounts/*/recharge"] = ("balance_adjust", "user"),
-        ["POST /api/accounts/*/disable"] = ("disable", "user"),
-        ["PUT /api/accounts/*/toggle-status"] = ("toggle_status", "user"),
-        ["POST /api/songs"] = ("create", "song"),
-        ["PUT /api/songs/*"] = ("update", "song"),
-        ["DELETE /api/songs/*"] = ("delete", "song"),
-        ["PUT /api/rooms/*/status"] = ("update_status", "room"),
-        ["POST /api/rooms/*/end-session"] = ("end_session", "room"),
-        ["PUT /api/settings"] = ("update", "settings"),
-        ["POST /api/settings/admin-account/username"] = ("change_username", "admin"),
-        ["POST /api/settings/admin-account/password"] = ("change_password", "admin"),
-        ["POST /api/holidays"] = ("create", "holiday"),
-        ["DELETE /api/holidays/*"] = ("delete", "holiday"),
-    };
+    // Routes that exist today. More specific patterns (with /*/) come before broad ones (with /*).
+    private static readonly (string Pattern, string Type, string Obj)[] Routes =
+    [
+        ("POST /api/accounts",                "create",         "user"),
+        ("POST /api/accounts/*/recharge",     "balance_adjust", "user"),
+        ("POST /api/accounts/*/disable",      "disable",        "user"),
+        ("PUT /api/accounts/*",               "update",         "user"),
+        ("PUT /api/accounts/*/toggle-status", "toggle_status",  "user"),
+        ("POST /api/songs",                   "create",         "song"),
+        ("PUT /api/songs/*",                  "update",         "song"),
+        ("DELETE /api/songs/*",               "delete",         "song"),
+        ("PUT /api/rooms/*/status",           "update_status",  "room"),
+        ("POST /api/rooms/*/end-session",     "end_session",    "room"),
+        ("PUT /api/settings",                 "update",         "settings"),
+        ("POST /api/settings/admin-account/username", "change_username", "admin"),
+        ("POST /api/settings/admin-account/password", "change_password", "admin"),
+    ];
 
     public OperationLoggingMiddleware(RequestDelegate next, ILogger<OperationLoggingMiddleware> logger)
     {
@@ -43,19 +35,19 @@ public class OperationLoggingMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Capture the response to only log on success
-        var originalBodyStream = context.Response.Body;
-        using var responseBody = new MemoryStream();
-        context.Response.Body = responseBody;
+        // Register callback BEFORE downstream runs so we capture status code
+        // without buffering the response body.
+        var statusCode = 0;
+        context.Response.OnStarting(() =>
+        {
+            statusCode = context.Response.StatusCode;
+            return Task.CompletedTask;
+        });
 
         await _next(context);
 
-        responseBody.Seek(0, SeekOrigin.Begin);
-        await responseBody.CopyToAsync(originalBodyStream);
-        context.Response.Body = originalBodyStream;
-
         // Only log successful write operations (POST/PUT/DELETE with 2xx status)
-        if (context.Response.StatusCode >= 200 && context.Response.StatusCode < 300
+        if (statusCode >= 200 && statusCode < 300
             && (context.Request.Method == "POST" || context.Request.Method == "PUT" || context.Request.Method == "DELETE"))
         {
             try
@@ -78,27 +70,30 @@ public class OperationLoggingMiddleware
     {
         var method = context.Request.Method;
         var path = context.Request.Path.Value ?? "";
-
-        // Try exact match first, then wildcard match
         var key = $"{method} {path}";
-        if (!RouteMap.TryGetValue(key, out var mapping))
+
+        // Match routes — array is ordered most-specific-first
+        (string type, string obj)? mapping = null;
+        foreach (var (pattern, type, obj) in Routes)
         {
-            // Try matching with wildcard patterns
-            foreach (var kvp in RouteMap)
+            if (pattern.Contains('*'))
             {
-                if (kvp.Key.Contains("*"))
+                // Convert wildcard pattern to prefix: "PUT /api/songs/*" → "PUT /api/songs/"
+                var prefix = pattern[..pattern.IndexOf('*')];
+                if (key.StartsWith(prefix))
                 {
-                    var pattern = kvp.Key.Replace("*", "");
-                    if (key.StartsWith(pattern) || MatchesWildcard(key, kvp.Key))
-                    {
-                        mapping = kvp.Value;
-                        break;
-                    }
+                    mapping = (type, obj);
+                    break;
                 }
             }
-
-            if (mapping == default) return null;
+            else if (key == pattern)
+            {
+                mapping = (type, obj);
+                break;
+            }
         }
+
+        if (mapping == null) return null;
 
         var username = context.User.FindFirst(ClaimTypes.Name)?.Value ?? "unknown";
 
@@ -108,8 +103,8 @@ public class OperationLoggingMiddleware
         if (segments.Length >= 3)
         {
             objectId = segments[^1];
-            // If the last segment is an action (refund/complete/cancel/restore/disable/status/recharge/password/username), use the second-to-last
-            var actions = new[] { "refund", "complete", "cancel", "restore", "disable", "status", "recharge", "password", "username", "end-session", "toggle-status" };
+            // If the last segment is an action verb, use the second-to-last segment as the ID
+            var actions = new[] { "recharge", "disable", "toggle-status", "status", "end-session", "username", "password" };
             if (actions.Contains(objectId.ToLower()))
             {
                 objectId = segments.Length >= 4 ? segments[^2] : null;
@@ -119,16 +114,10 @@ public class OperationLoggingMiddleware
         return new OperationLog
         {
             Username = username,
-            OperationType = mapping.type,
-            ObjectType = mapping.obj,
+            OperationType = mapping.Value.type,
+            ObjectType = mapping.Value.obj,
             ObjectId = objectId,
             Details = $"{method} {path}"
         };
-    }
-
-    private static bool MatchesWildcard(string input, string pattern)
-    {
-        var regex = "^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace("\\*", "[^/]+") + "$";
-        return System.Text.RegularExpressions.Regex.IsMatch(input, regex);
     }
 }

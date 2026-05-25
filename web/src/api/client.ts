@@ -37,9 +37,9 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      // Notify Pinia store (same-tab, synchronous)
+      window.dispatchEvent(new Event('auth:expired'))
     }
-    // Non-401 errors (500, 400, etc.) are passed through without redirect
     return Promise.reject(error)
   }
 )

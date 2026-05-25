@@ -234,6 +234,40 @@ var app = builder.Build();
         conn.Execute("ALTER TABLE Songs ADD OriginalFileName NVARCHAR(500) NULL");
         Console.WriteLine("[AutoMigrate] Songs.OriginalFileName column added");
     }
+
+    // 9. OperationLogs table
+    if (!TableExists("OperationLogs"))
+    {
+        conn.Execute(@"
+            CREATE TABLE OperationLogs (
+                Id INT IDENTITY(1,1) PRIMARY KEY,
+                Username NVARCHAR(50) NOT NULL,
+                OperationType NVARCHAR(50) NOT NULL,
+                ObjectType NVARCHAR(50) NOT NULL,
+                ObjectId NVARCHAR(50) NULL,
+                Details NVARCHAR(MAX) NULL,
+                CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE()
+            )");
+        conn.Execute("CREATE INDEX IX_OperationLogs_CreatedAt ON OperationLogs(CreatedAt DESC)");
+        conn.Execute("CREATE INDEX IX_OperationLogs_Type ON OperationLogs(OperationType)");
+        Console.WriteLine("[AutoMigrate] OperationLogs table created");
+    }
+
+    // 10. Cleanup old operation logs on startup
+    try
+    {
+        var retentionDays = conn.QuerySingleOrDefault<string>(
+            "SELECT Value FROM SystemSettings WHERE [Key] = 'log_retention_days'");
+        if (retentionDays != null && int.TryParse(retentionDays, out var days) && days > 0)
+        {
+            var deleted = conn.Execute(
+                "DELETE FROM OperationLogs WHERE CreatedAt < DATEADD(DAY, -@Days, GETUTCDATE())",
+                new { Days = days });
+            if (deleted > 0)
+                Console.WriteLine($"[AutoMigrate] Cleaned up {deleted} old operation logs (>{days} days)");
+        }
+    }
+    catch { /* SystemSettings table may not exist yet */ }
 }
 
 if (app.Environment.IsDevelopment())

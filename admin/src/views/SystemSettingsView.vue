@@ -123,16 +123,16 @@
                 class="w-full bg-surface-container-high text-on-surface border-none rounded-lg focus:ring-2 focus:ring-primary h-10 px-4 pr-8 appearance-none cursor-pointer text-sm"
               >
                 <option value="">全部类型</option>
-                <option value="login">登录</option>
+                <option value="create">新建</option>
+                <option value="update">修改</option>
+                <option value="delete">删除</option>
                 <option value="disable">禁用用户</option>
-                <option value="enable">启用用户</option>
-                <option value="close_room">关闭房间</option>
-                <option value="approve_request">审批开房</option>
-                <option value="process_feedback">处理反馈</option>
-                <option value="update_settings">修改设置</option>
+                <option value="toggle_status">切换状态</option>
+                <option value="balance_adjust">余额调整</option>
+                <option value="update_status">房间状态</option>
+                <option value="end_session">结束会话</option>
                 <option value="change_username">改用户名</option>
                 <option value="change_password">改密码</option>
-                <option value="song_status">上下架歌曲</option>
               </select>
               <span class="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-outline pointer-events-none text-base">expand_more</span>
             </div>
@@ -184,7 +184,7 @@
                       {{ getLogTypeLabel(log.operationType) }}
                     </span>
                   </td>
-                  <td class="py-3 px-2 text-on-surface-variant">{{ log.objectId || '-' }}</td>
+                  <td class="py-3 px-2 text-on-surface-variant">{{ getObjectTypeLabel(log.objectType) }} {{ log.objectId ? '#' + log.objectId : '' }}</td>
                   <td class="py-3 px-2 text-on-surface-variant max-w-[200px] truncate" :title="log.details || ''">{{ log.details || '-' }}</td>
                 </tr>
               </tbody>
@@ -391,21 +391,29 @@ function debounceLogSearch() {
 
 function getLogTypeLabel(type: string) {
   const map: Record<string, string> = {
-    login: '登录', disable: '禁用用户', enable: '启用用户',
-    close_room: '关闭房间', approve_request: '审批开房',
-    process_feedback: '处理反馈', update_settings: '修改设置',
-    change_username: '改用户名', change_password: '改密码',
-    song_status: '上下架歌曲',
+    create: '新建', update: '修改', delete: '删除',
+    disable: '禁用用户', toggle_status: '切换状态',
+    balance_adjust: '余额调整', update_status: '房间状态',
+    end_session: '结束会话', change_username: '改用户名',
+    change_password: '改密码',
   }
   return map[type] || type
 }
 
 function getLogTypeClass(type: string) {
-  if (['disable', 'close_room'].includes(type)) return 'bg-error/10 text-error'
-  if (['enable', 'approve_request'].includes(type)) return 'bg-primary/10 text-primary'
-  if (['change_password', 'change_username', 'update_settings'].includes(type)) return 'bg-warning/10 text-warning'
-  if (type === 'login') return 'bg-outline/10 text-outline'
+  if (['delete', 'disable'].includes(type)) return 'bg-error/10 text-error'
+  if (['balance_adjust', 'change_password', 'change_username'].includes(type)) return 'bg-warning/10 text-warning'
+  if (['create', 'toggle_status'].includes(type)) return 'bg-primary/10 text-primary'
+  if (type === 'update') return 'bg-outline/10 text-outline'
   return 'bg-surface-container-high text-on-surface-variant'
+}
+
+function getObjectTypeLabel(objType: string) {
+  const map: Record<string, string> = {
+    user: '用户', song: '歌曲', room: '房间',
+    settings: '系统设置', admin: '管理员',
+  }
+  return map[objType] || objType
 }
 
 function formatDate(dateStr: string) {

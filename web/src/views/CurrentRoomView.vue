@@ -6,9 +6,11 @@ import { usePlayerStore } from '@/stores/player'
 import { useAuthStore } from '@/stores/auth'
 import type { RoomInfo } from '@/types'
 import { useToast } from '@/composables/useToast'
+import { useSwitchFeedback } from '@/composables/useSwitchFeedback'
 
 // Toast
 const { toastMsg, showToast } = useToast()
+const { rowClass, triggerCoverFly } = useSwitchFeedback()
 
 const player = usePlayerStore()
 const auth = useAuthStore()
@@ -158,13 +160,18 @@ async function onDrop(i: number, e: DragEvent) {
 }
 function onDragEnd() { dragIndex.value = null; dragOverIndex.value = null }
 
-// --- Auto-scroll playlist to current ---
+// --- Auto-scroll playlist to current + cover fly ---
 const playlistContainer = ref<HTMLElement | null>(null)
-watch(() => player.currentQueueItemId, async (qid) => {
-  if (qid == null || !playlistContainer.value) return
+watch(() => player.currentQueueItemId, async (newQid, oldQid) => {
+  if (newQid == null || !playlistContainer.value) return
   await nextTick()
-  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${qid}"]`) as HTMLElement
+  const el = playlistContainer.value.querySelector(`[data-playlist-qid="${newQid}"]`) as HTMLElement
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  // Cover fly: animate to player bar cover
+  if (oldQid != null && newQid !== oldQid) {
+    const targetEl = document.querySelector('.player-capsule img') as HTMLElement
+    if (targetEl) triggerCoverFly(playlistContainer.value, targetEl)
+  }
 })
 
 async function sendChatMessage() {
@@ -266,6 +273,56 @@ onUnmounted(() => {
   opacity: 0;
   transform: translate(-50%, -20px);
 }
+
+/* ===== Switch feedback: Takeover + weak spotlight ===== */
+.switch-old {
+  animation: switchOld .15s ease forwards;
+}
+@keyframes switchOld {
+  to { opacity: .55; transform: scale(.97); }
+}
+.switch-new {
+  animation: switchNew .4s cubic-bezier(.4,0,.2,1) forwards;
+}
+@keyframes switchNew {
+  0% { opacity: .6; transform: scale(.96) translateY(4px); }
+  50% { opacity: 1; transform: scale(1.01) translateY(0); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.switch-glow {
+  animation: switchGlow .5s ease forwards;
+}
+@keyframes switchGlow {
+  0% { box-shadow: 0 0 0 0 rgba(103,80,164,.2); }
+  40% { box-shadow: 0 0 14px 5px rgba(103,80,164,.2); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.switch-dim {
+  opacity: .8;
+  transition: opacity .15s;
+}
+
+/* Cover catch pulse on player */
+:global(.cover-catch) {
+  animation: coverCatch .4s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes coverCatch {
+  0% { transform: scale(.82); }
+  60% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+/* EQ bars — persistent playing indicator */
+.eq-bars {
+  display: inline-flex; gap: 2px; align-items: flex-end; height: 14px;
+}
+.eq-bar {
+  width: 3px; border-radius: 1px; background: #6750A4;
+}
+.eq-bar:nth-child(1) { animation: eqB .5s ease-in-out infinite alternate; }
+.eq-bar:nth-child(2) { animation: eqB .6s ease-in-out infinite alternate .15s; }
+.eq-bar:nth-child(3) { animation: eqB .45s ease-in-out infinite alternate .3s; }
+@keyframes eqB { 0% { height: 3px; } 100% { height: 14px; } }
 </style>
 
 <template>
@@ -383,6 +440,7 @@ onUnmounted(() => {
             player.currentQueueItemId === item.queueItemId ? 'bg-primary/15 ring-1 ring-primary/30' : '',
             dragOverIndex === index ? 'border-t-2 border-primary' : '',
             dragIndex === index ? 'opacity-40' : '',
+            rowClass(item.queueItemId),
           ]"
           draggable="true"
           @dragstart="onDragStart(index, $event)"
@@ -397,7 +455,9 @@ onUnmounted(() => {
             class="w-8 font-bold"
             :class="player.currentQueueItemId === item.queueItemId ? 'text-primary' : 'text-slate-400'"
           >
-            <span v-if="player.currentQueueItemId === item.queueItemId && player.isPlaying" class="material-symbols-outlined text-sm align-middle">equalizer</span>
+            <span v-if="player.currentQueueItemId === item.queueItemId && player.isPlaying" class="eq-bars">
+              <span class="eq-bar"></span><span class="eq-bar"></span><span class="eq-bar"></span>
+            </span>
             <span v-else>{{ String(index + 1).padStart(2, '0') }}</span>
           </span>
           <img

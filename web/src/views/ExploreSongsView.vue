@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { songsApi, feedbacksApi, favoritesApi } from '@/api'
 import { useSongOrder } from '@/composables/useSongOrder'
 import type { Song } from '@/types'
-import { formatDuration, formatPlayCount } from '@/utils/format'
+import { formatPlayCount } from '@/utils/format'
 import { useToast } from '@/composables/useToast'
+import { useParticleBurst } from '@/composables/useParticleBurst'
+import { useHeartAnimation } from '@/composables/useHeartAnimation'
 
 // Toast
 const { toastMsg, showToast } = useToast()
+const { burst } = useParticleBurst()
+const { toggleHeart } = useHeartAnimation()
 
 const route = useRoute()
 const { orderSong } = useSongOrder()
@@ -18,6 +22,16 @@ const selectedGenre = ref<string>('')
 const searchKeyword = ref('')
 const songs = ref<Song[]>([])
 const favoritedSongIds = ref<Set<number>>(new Set())
+
+// Spring animation for duplicate song
+const songListSpringing = ref(false)
+const duangMsg = ref('')
+function onSongRejected(e: Event) {
+  duangMsg.value = (e as CustomEvent).detail
+  songListSpringing.value = true
+  setTimeout(() => { songListSpringing.value = false }, 550)
+  setTimeout(() => { duangMsg.value = '' }, 1200)
+}
 
 // Feedback dialog state
 const showFeedbackDialog = ref(false)
@@ -37,7 +51,6 @@ async function loadSongs() {
   const { data } = await songsApi.getList({
     search: searchKeyword.value || undefined,
     genre: selectedGenre.value || undefined,
-    status: 'active',
     page: 1,
     pageSize: 50,
   })
@@ -60,19 +73,26 @@ async function loadFavorites() {
   } catch { /* ignore */ }
 }
 
-async function toggleFavorite(songId: number) {
-  try {
-    if (favoritedSongIds.value.has(songId)) {
-      await favoritesApi.remove(songId)
-      favoritedSongIds.value.delete(songId)
-    } else {
-      await favoritesApi.add(songId)
-      favoritedSongIds.value.add(songId)
+async function toggleFavorite(songId: number, event: MouseEvent) {
+  const btn = event.currentTarget as HTMLElement
+  const wasFav = favoritedSongIds.value.has(songId)
+
+  if (!wasFav) burst(btn)
+
+  toggleHeart(btn, !wasFav, async () => {
+    try {
+      if (wasFav) {
+        await favoritesApi.remove(songId)
+        favoritedSongIds.value.delete(songId)
+      } else {
+        await favoritesApi.add(songId)
+        favoritedSongIds.value.add(songId)
+      }
+      favoritedSongIds.value = new Set(favoritedSongIds.value)
+    } catch (err: any) {
+      showToast(err.response?.data?.message || '操作失败')
     }
-    favoritedSongIds.value = new Set(favoritedSongIds.value)
-  } catch (err: any) {
-    showToast(err.response?.data?.message || '操作失败')
-  }
+  })
 }
 
 function isFavorited(songId: number) {
@@ -111,6 +131,10 @@ onMounted(() => {
   loadGenres()
   loadSongs()
   loadFavorites()
+  window.addEventListener('song-rejected', onSongRejected)
+})
+onUnmounted(() => {
+  window.removeEventListener('song-rejected', onSongRejected)
 })
 
 watch(() => route.query.search, (val) => {
@@ -129,6 +153,52 @@ watch(() => route.query.search, (val) => {
   opacity: 0;
   transform: translate(-50%, -20px);
 }
+
+/* Duang toast */
+.duang-toast {
+  position: fixed; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0,0,0,0.75); color: #fff;
+  padding: 12px 28px; border-radius: 16px;
+  font-size: 16px; font-weight: 700;
+  white-space: nowrap; pointer-events: none; z-index: 200;
+}
+.duang-enter-active {
+  animation: duangPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.duang-leave-active {
+  animation: duangFade 0.4s ease forwards;
+}
+@keyframes duangPop {
+  0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
+  60% { transform: translate(-50%, -50%) scale(1.03); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+@keyframes duangFade {
+  0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) scale(0.9); opacity: 0; }
+}
+
+/* List spring bounce */
+.song-list-bounce {
+  animation: squishBounce 0.5s ease;
+}
+@keyframes squishBounce {
+  0%   { transform: scaleY(1); }
+  15%  { transform: scaleY(0.996); }
+  35%  { transform: scaleY(1.002); }
+  55%  { transform: scaleY(0.999); }
+  100% { transform: scaleY(1); }
+}
+
+/* SVG heart */
+.heart-outline { fill: none; stroke: #cbd5e1; stroke-width: 1.5; transition: stroke 0.25s; }
+.heart-fill-svg { opacity: 0; transition: none; }
+.heart-fill-path { fill: #ef4444; }
+.heart-btn.is-fav .heart-fill-svg { opacity: 1; clip-path: circle(75% at 50% 55%); }
+.heart-btn.is-fav .heart-outline { stroke: #ef4444; }
+.dark .heart-outline { stroke: var(--d-outline); }
+.dark .heart-btn.is-fav .heart-outline { stroke: #ef4444; }
 </style>
 
 <template>
@@ -179,7 +249,7 @@ watch(() => route.query.search, (val) => {
     </div>
 
     <!-- Song list -->
-    <div class="flex flex-col gap-4">
+    <div class="flex flex-col gap-4" :class="{ 'song-list-bounce': songListSpringing }">
       <div
         v-for="song in songs"
         :key="song.id"
@@ -212,16 +282,14 @@ watch(() => route.query.search, (val) => {
         <div class="flex items-center gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
           <!-- Favorite toggle -->
           <button
-            @click="toggleFavorite(song.id)"
-            class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high dark:hover:bg-[var(--d-hover-bg)] transition-colors"
+            @click="toggleFavorite(song.id, $event)"
+            class="heart-btn w-[60px] h-[60px] flex items-center justify-center rounded-full hover:bg-surface-container-high dark:hover:bg-[var(--d-hover-bg)] transition-colors"
+            :class="{ 'is-fav': isFavorited(song.id) }"
           >
-            <span
-              class="material-symbols-outlined"
-              :class="isFavorited(song.id) ? 'text-error' : 'text-outline'"
-              :style="isFavorited(song.id) ? 'font-variation-settings: FILL 1' : ''"
-            >
-              favorite
-            </span>
+            <div class="heart-icon relative w-[30px] h-[30px]">
+              <svg viewBox="0 0 24 24" class="absolute inset-0 w-full h-full"><path class="heart-outline" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+              <svg viewBox="0 0 24 24" class="heart-fill-svg absolute inset-0 w-full h-full"><path class="heart-fill-path" d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+            </div>
           </button>
           <!-- Order button -->
           <button
@@ -233,6 +301,11 @@ watch(() => route.query.search, (val) => {
         </div>
       </div>
     </div>
+
+    <!-- Duang toast (spring feedback) -->
+    <Transition name="duang">
+      <div v-if="duangMsg" class="duang-toast">{{ duangMsg }}</div>
+    </Transition>
 
     <!-- Feedback FAB -->
     <button
